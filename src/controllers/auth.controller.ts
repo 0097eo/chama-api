@@ -1,6 +1,5 @@
-import { Request, Response, NextFunction } from 'express';
+import { Request, Response, NextFunction } from 'express'; 
 import * as authService from '../services/auth.service';
-import { AuthenticatedRequest } from '../middleware/auth.middleware';
 
 // POST /api/auth/register
 export const register = async (req: Request, res: Response, next: NextFunction) => {
@@ -24,7 +23,7 @@ export const login = async (req: Request, res: Response, next: NextFunction) => 
 };
 
 // GET /api/auth/profile
-export const getProfile = async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+export const getProfile = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const userId = req.user?.id;
     if (!userId) {
@@ -38,7 +37,7 @@ export const getProfile = async (req: AuthenticatedRequest, res: Response, next:
 };
 
 // PUT /api/auth/profile
-export const updateProfile = async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+export const updateProfile = async (req: Request, res: Response, next: NextFunction) => {
     try {
         const userId = req.user?.id;
         if (!userId) {
@@ -50,6 +49,3 @@ export const updateProfile = async (req: AuthenticatedRequest, res: Response, ne
         next(error);
     }
 };
-
-// ---TODO--- Password Reset and other functions to be added ---
-// We'll add forgotPassword, resetPassword, and refreshToken here later.

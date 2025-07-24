@@ -1,12 +1,11 @@
-// src/server.ts
-
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import morgan from 'morgan';
 import dotenv from 'dotenv';
 import authRoutes from './routes/auth.routes';
-// ---TODO--- import { errorHandler } from './middleware/error.middleware';
+import userRoutes from './routes/user.routes';
+// Todo -  import { errorHandler } from './middleware/error.middleware';
 
 dotenv.config();
 
@@ -30,6 +29,7 @@ app.use(express.json());
 
 // --- API Routes ---
 app.use('/api/auth', authRoutes);
+app.use('/api/users', userRoutes);
 
 // --- Health Check Endpoint ---
 app.get('/', (req, res) => {
@@ -38,7 +38,7 @@ app.get('/', (req, res) => {
 
 // --- Error Handling Middleware ---
 // This should be the last middleware
-// ---TODO--- app.use(errorHandler); //  will add this later when I create the middleware
+// Todo -  app.use(errorHandler); //  will add this later when I create the middleware
 
 app.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);

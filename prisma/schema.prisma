@@ -56,6 +56,12 @@ enum NotificationType {
   GENERAL
 }
 
+enum AuditAction {
+  USER_UPDATE
+  USER_DELETE
+  USER_INVITE
+}
+
 
 
 // User model for authentication and personal details
@@ -69,8 +75,13 @@ model User {
   idNumber  String   @unique
   role      UserRole @default(USER)
 
+  deletedAt DateTime?
+
   memberships  Membership[]
   notifications Notification[]
+
+  auditLogs     AuditLog[]     @relation("UserActions") // User who performed the action
+  auditTargets  AuditLog[]     @relation("TargetUser")  // User who was the target of the action
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -232,4 +243,25 @@ model Notification {
   userId String
 
   @@index([userId])
+}
+
+// AuditLog model
+model AuditLog {
+  id        String      @id @default(cuid())
+  action    AuditAction
+  oldValue  Json?       // What the data looked like before
+  newValue  Json?       // What the data looks like now
+
+  // Relation to the user who performed the action (the admin)
+  user      User     @relation("UserActions", fields: [userId], references: [id])
+  userId    String
+
+  // Relation to the user who was affected
+  target    User     @relation("TargetUser", fields: [targetId], references: [id])
+  targetId  String
+  
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([targetId])
 }

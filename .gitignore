@@ -1,0 +1,46 @@
+# Dependency directories
+node_modules/
+
+# Build output
+dist/
+
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# Environment variables
+.env
+.env.test
+.env.production
+.env.development
+
+# Prisma
+# Ignore the generated Prisma Client folder
+# This is typically regenerated on `npm install` or `prisma generate`
+/node_modules/.prisma/client
+
+# IDE and editor directories
+.idea/
+.vscode/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Operating System files
+.DS_Store
+Thumbs.db
+
+# Optional test reports
+coverage/
+.nyc_output/
+
+# Optional tooling files
+.npm
+.eslintcache

@@ -1,0 +1,50 @@
+import { Request, Response, NextFunction } from 'express';
+import { verifyToken } from '../utils/jwt.utils';
+import { PrismaClient } from '../generated/prisma';
+import { JwtPayload } from 'jsonwebtoken'; // Import JwtPayload
+
+const prisma = new PrismaClient();
+
+export interface AuthenticatedRequest extends Request {
+  user?: { id: string };
+}
+
+export const protect = async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+  let token;
+
+  if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
+    try {
+      token = req.headers.authorization.split(' ')[1];
+
+      const decoded = verifyToken(token);
+      
+      if (!decoded || typeof decoded !== 'object') {
+        return res.status(401).json({ success: false, message: 'Not authorized, token invalid' });
+      }
+      
+      const userId = (decoded as JwtPayload).id;
+      if (!userId) {
+        return res.status(401).json({ success: false, message: 'Not authorized, token invalid' });
+      }
+
+      const user = await prisma.user.findUnique({
+        where: { id: userId }, // Use the validated userId
+        select: { id: true }
+      });
+
+      if (!user) {
+        return res.status(401).json({ success: false, message: 'Not authorized, user not found' });
+      }
+
+      req.user = user;
+      next();
+    } catch (error) {
+      console.error(error);
+      return res.status(401).json({ success: false, message: 'Not authorized' });
+    }
+  }
+
+  if (!token) {
+    return res.status(401).json({ success: false, message: 'Not authorized, no token' });
+  }
+};

@@ -1,0 +1,235 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  USER
+  ADMIN
+}
+
+enum MembershipRole {
+  ADMIN
+  TREASURER
+  SECRETARY
+  MEMBER
+}
+
+enum ContributionStatus {
+  PENDING
+  PAID
+  OVERDUE
+}
+
+enum LoanStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  ACTIVE
+  PAID
+  DEFAULTED
+}
+
+enum TransactionType {
+  CONTRIBUTION
+  LOAN_DISBURSEMENT
+  LOAN_REPAYMENT
+  EXPENSE
+  OTHER
+}
+
+enum NotificationType {
+  MEETING_REMINDER
+  CONTRIBUTION_DUE
+  LOAN_APPROVED
+  GENERAL
+}
+
+
+
+// User model for authentication and personal details
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  phone     String   @unique
+  firstName String
+  lastName  String
+  password  String // Will be a hashed password
+  idNumber  String   @unique
+  role      UserRole @default(USER)
+
+  memberships  Membership[]
+  notifications Notification[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// Chama model for group details
+model Chama {
+  id                 String   @id @default(cuid())
+  name               String   @unique
+  description        String?
+  registrationNumber String?  @unique
+  totalMembers       Int      @default(1)
+  monthlyContribution Float
+  meetingDay         String // e.g., "Last Sunday of the month"
+  constitutionUrl    String?
+
+  members     Membership[]
+  meetings    Meeting[]
+  transactions Transaction[]
+
+  createdAt DateTime @default(now())
+}
+
+// Membership model linking Users and Chamas
+model Membership {
+  id      String         @id @default(cuid())
+  role    MembershipRole @default(MEMBER)
+  joinedAt DateTime       @default(now())
+  isActive Boolean        @default(true)
+
+  // Relations
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId String
+  chama  Chama  @relation(fields: [chamaId], references: [id], onDelete: Cascade)
+  chamaId String
+
+  contributions     Contribution[]
+  loans             Loan[]
+  meetingAttendance MeetingAttendance[]
+
+  // A user can only be a member of a specific chama once
+  @@unique([userId, chamaId])
+  @@index([userId])
+  @@index([chamaId])
+}
+
+// Contribution model for member payments
+model Contribution {
+  id         String             @id @default(cuid())
+  amount     Float
+  month      Int // e.g., 7 for July
+  year       Int // e.g., 2025
+  paymentMethod String         @default("MPESA")
+  mpesaCode  String?            @unique
+  paidAt     DateTime?
+  status     ContributionStatus @default(PENDING)
+
+  // Relation
+  membership   Membership @relation(fields: [membershipId], references: [id], onDelete: Cascade)
+  membershipId String
+
+  @@index([membershipId])
+}
+
+// Loan model for members borrowing funds
+model Loan {
+  id          String     @id @default(cuid())
+  amount      Float
+  interestRate Float
+  duration    Int // Duration in months
+  purpose     String
+  status      LoanStatus @default(PENDING)
+  appliedAt   DateTime   @default(now())
+  approvedAt  DateTime?
+  dueDate     DateTime?
+
+  // Relation
+  membership   Membership @relation(fields: [membershipId], references: [id], onDelete: Cascade)
+  membershipId String
+  payments     LoanPayment[]
+
+  @@index([membershipId])
+}
+
+// LoanPayment model for tracking loan repayments
+model LoanPayment {
+  id        String   @id @default(cuid())
+  amount    Float
+  paidAt    DateTime @default(now())
+  mpesaCode String?  @unique
+
+  // Relation
+  loan   Loan   @relation(fields: [loanId], references: [id], onDelete: Cascade)
+  loanId String
+
+  @@index([loanId])
+}
+
+// Meeting model for scheduling group meetings
+model Meeting {
+  id          String   @id @default(cuid())
+  title       String
+  agenda      String
+  scheduledFor DateTime
+  location    String
+  status      String   @default("SCHEDULED") // SCHEDULED, COMPLETED, CANCELED
+
+  // Relation
+  chama   Chama  @relation(fields: [chamaId], references: [id], onDelete: Cascade)
+  chamaId String
+  attendance MeetingAttendance[]
+
+  @@index([chamaId])
+}
+
+// MeetingAttendance to track who attended which meeting
+model MeetingAttendance {
+  id         String   @id @default(cuid())
+  attendedAt DateTime @default(now())
+
+  // Relations
+  meeting      Meeting    @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+  meetingId    String
+  membership   Membership @relation(fields: [membershipId], references: [id], onDelete: Cascade)
+  membershipId String
+
+  // A member can only be marked as attended once per meeting
+  @@unique([meetingId, membershipId])
+  @@index([meetingId])
+  @@index([membershipId])
+}
+
+// Transaction model for general financial activities of the chama
+model Transaction {
+  id          String          @id @default(cuid())
+  type        TransactionType
+  amount      Float
+  description String
+  createdAt   DateTime        @default(now())
+
+  // Relation
+  chama   Chama  @relation(fields: [chamaId], references: [id], onDelete: Cascade)
+  chamaId String
+
+  @@index([chamaId])
+}
+
+// Notification model for user alerts
+model Notification {
+  id      String           @id @default(cuid())
+  title   String
+  message String
+  type    NotificationType
+  read    Boolean          @default(false)
+  createdAt DateTime       @default(now())
+
+  // Relation
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId String
+
+  @@index([userId])
+}

@@ -44,3 +44,4 @@ coverage/
 # Optional tooling files
 .npm
 .eslintcache
+/src/generated/prisma

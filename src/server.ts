@@ -5,6 +5,7 @@ import morgan from 'morgan';
 import dotenv from 'dotenv';
 import authRoutes from './routes/auth.routes';
 import userRoutes from './routes/user.routes';
+import chamaRoutes from './routes/chama.routes';
 // Todo -  import { errorHandler } from './middleware/error.middleware';
 
 dotenv.config();
@@ -30,6 +31,7 @@ app.use(express.json());
 // --- API Routes ---
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
+app.use('/api/chamas', chamaRoutes);
 
 // --- Health Check Endpoint ---
 app.get('/', (req, res) => {

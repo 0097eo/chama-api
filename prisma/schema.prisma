@@ -60,6 +60,12 @@ enum AuditAction {
   USER_UPDATE
   USER_DELETE
   USER_INVITE
+
+  CHAMA_UPDATE
+  CHAMA_DELETE
+  CHAMA_MEMBER_ADD
+  CHAMA_MEMBER_REMOVE
+  CHAMA_MEMBER_ROLE_UPDATE
 }
 
 
@@ -101,6 +107,8 @@ model Chama {
   members     Membership[]
   meetings    Meeting[]
   transactions Transaction[]
+  invitations ChamaInvitation[]
+  auditLogs AuditLog[]
 
   createdAt DateTime @default(now())
 }
@@ -121,6 +129,7 @@ model Membership {
   contributions     Contribution[]
   loans             Loan[]
   meetingAttendance MeetingAttendance[]
+  sentInvitations ChamaInvitation[]
 
   // A user can only be a member of a specific chama once
   @@unique([userId, chamaId])
@@ -257,11 +266,39 @@ model AuditLog {
   userId    String
 
   // Relation to the user who was affected
-  target    User     @relation("TargetUser", fields: [targetId], references: [id])
+  target    User    @relation("TargetUser", fields: [targetId], references: [id])
   targetId  String
   
+  chama     Chama?   @relation(fields: [chamaId], references: [id], onDelete: Cascade)
+  chamaId   String?  
+
   createdAt DateTime @default(now())
 
   @@index([userId])
   @@index([targetId])
+  @@index([chamaId]) 
+}
+
+// Model for chama invitation
+model ChamaInvitation {
+  id        String   @id @default(cuid())
+  code      String   @unique @default(cuid())
+  expiresAt DateTime
+
+  // Relation to the Chama
+  chama   Chama  @relation(fields: [chamaId], references: [id], onDelete: Cascade)
+  chamaId String
+
+  // Who is being invited
+  email   String
+  phone   String?
+
+  // Who sent the invitation
+  inviter   Membership @relation(fields: [inviterId], references: [id])
+  inviterId String
+
+  createdAt DateTime @default(now())
+
+  @@index([chamaId])
+  @@index([email])
 }

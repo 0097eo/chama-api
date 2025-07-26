@@ -1,7 +1,7 @@
-import { Prisma, PrismaClient, User } from '../generated/prisma';
+import { Prisma, PrismaClient, User } from '../generated/prisma/client';
 import { createAuditLog } from './audit.service';
 import { sendInvitationEmail } from './notification.service';
-import { parsePhoneNumberFromString } from 'libphonenumber-js'
+import { parsePhoneNumberFromString } from 'libphonenumber-js';
 
 const prisma = new PrismaClient();
 
@@ -70,7 +70,8 @@ export const updateUser = async (adminUserId: string, targetUserId: string, data
   // Create an audit log of the change
   await createAuditLog({
     action: 'USER_UPDATE',
-    userId: adminUserId,
+    // Change 'userId' to 'actorId' to match the interface
+    actorId: adminUserId,
     targetId: targetUserId,
     oldValue: userToUpdate,
     newValue: updatedUser,
@@ -98,7 +99,8 @@ export const softDeleteUser = async (adminUserId: string, targetUserId: string) 
   // Create an audit log of the deletion
   await createAuditLog({
     action: 'USER_DELETE',
-    userId: adminUserId,
+    // Change 'userId' to 'actorId' to match the interface
+    actorId: adminUserId,
     targetId: targetUserId,
     oldValue: userToDelete,
   });
@@ -111,7 +113,8 @@ export const softDeleteUser = async (adminUserId: string, targetUserId: string) 
  */
 export const inviteUser = async (inviter: User, inviteeEmail: string) => {
   const inviterName = `${inviter.firstName} ${inviter.lastName}`;
-  await sendInvitationEmail(inviteeEmail, inviterName);
+  await sendInvitationEmail(inviteeEmail, inviterName); // This would call the notification service
+  console.log(`Pretending to send an invitation email to ${inviteeEmail} from ${inviterName}.`);
 
   // Note: We would create an audit log here if the invitation created a unique,
   // one-time token in the database. For a simple email, it's not necessary.

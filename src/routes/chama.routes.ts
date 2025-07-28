@@ -3,7 +3,7 @@ import { protect } from '../middleware/auth.middleware';
 import { checkMembership } from '../middleware/membership.middleware';
 import * as validator from '../validators/chama.validators';
 import * as chamaController from '../controllers/chama.controller';
-import upload from '../middleware/upload.midlleware';
+import { uploadConstitution } from '../middleware/upload.midlleware';
 
 const router = Router();
 
@@ -12,7 +12,7 @@ router.use(protect);
 // POST /api/chamas - Create new chama. Uploads constitution to Cloudinary.
 router.post(
   '/',
-  upload.single('constitution'), // 'constitution' is the form-data field name
+  uploadConstitution.single('constitution'), // 'constitution' is the form-data field name
   validator.createChamaValidator,
   chamaController.createChama
 );

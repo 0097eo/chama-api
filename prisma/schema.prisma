@@ -141,6 +141,7 @@ model Membership {
 model Contribution {
   id         String             @id @default(cuid())
   amount     Float
+  penaltyApplied Float?        @default(0.0) // To store penalty amount for late payment
   month      Int // e.g., 7 for July
   year       Int // e.g., 2025
   paymentMethod String         @default("MPESA")

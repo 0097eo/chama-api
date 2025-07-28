@@ -13,7 +13,7 @@ export const checkMembership = (allowedRoles: MembershipRole[]) => {
   return async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
       const userId = req.user?.id;
-      const { id: chamaId } = req.params; // Chama ID from URL params, e.g., /api/chamas/:id/
+      const chamaId = req.params.chamaId || req.params.id; // Chama ID from URL params, e.g., /api/chamas/:id/
 
       if (!userId) {
         return res.status(401).json({ message: 'Authentication required.' });

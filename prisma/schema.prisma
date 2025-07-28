@@ -165,8 +165,13 @@ model Loan {
   purpose     String
   status      LoanStatus @default(PENDING)
   appliedAt   DateTime   @default(now())
+  disbursedAt DateTime? 
   approvedAt  DateTime?
   dueDate     DateTime?
+  repaymentAmount   Float? // Total amount to be paid back (principal + interest)
+  monthlyInstallment Float? // The calculated monthly payment amount
+  isRestructured    Boolean  @default(false)
+  restructureNotes  String?
 
   // Relation
   membership   Membership @relation(fields: [membershipId], references: [id], onDelete: Cascade)
@@ -181,6 +186,7 @@ model LoanPayment {
   id        String   @id @default(cuid())
   amount    Float
   paidAt    DateTime @default(now())
+  paymentMethod String
   mpesaCode String?  @unique
 
   // Relation

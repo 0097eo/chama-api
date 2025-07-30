@@ -8,6 +8,7 @@ import userRoutes from './routes/user.routes';
 import chamaRoutes from './routes/chama.routes';
 import contributionRoutes from './routes/contribution.routes';
 import loanRoutes from './routes/loan.routes';
+import reportRoutes from './routes/report.routes';
 // Todo -  import { errorHandler } from './middleware/error.middleware';
 
 dotenv.config();
@@ -36,6 +37,7 @@ app.use('/api/users', userRoutes);
 app.use('/api/chamas', chamaRoutes);
 app.use('/api/contributions', contributionRoutes);
 app.use('/api/loans', loanRoutes);
+app.use('/api/reports', reportRoutes);
 
 // --- Health Check Endpoint ---
 app.get('/', (req, res) => {

@@ -61,7 +61,7 @@ export const recordContribution = async (data: ContributionData, actorId: string
     return prisma.contribution.create({
         data: {
             ...data,
-            status: 'PAID',
+            status: 'PENDING',
             penaltyApplied,
         },
     });

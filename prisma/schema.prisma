@@ -146,6 +146,7 @@ model Contribution {
   year       Int // e.g., 2025
   paymentMethod String         @default("MPESA")
   mpesaCode  String?            @unique
+  mpesaCheckoutId String?
   paidAt     DateTime?
   status     ContributionStatus @default(PENDING)
 

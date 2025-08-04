@@ -9,6 +9,7 @@ import chamaRoutes from './routes/chama.routes';
 import contributionRoutes from './routes/contribution.routes';
 import loanRoutes from './routes/loan.routes';
 import reportRoutes from './routes/report.routes';
+import mpesaRoutes from './routes/mpesa.routes';
 // Todo -  import { errorHandler } from './middleware/error.middleware';
 
 dotenv.config();
@@ -38,6 +39,7 @@ app.use('/api/chamas', chamaRoutes);
 app.use('/api/contributions', contributionRoutes);
 app.use('/api/loans', loanRoutes);
 app.use('/api/reports', reportRoutes);
+app.use('/api/payments', mpesaRoutes);
 
 // --- Health Check Endpoint ---
 app.get('/', (req, res) => {

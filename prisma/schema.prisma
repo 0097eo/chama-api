@@ -173,6 +173,7 @@ model Loan {
   monthlyInstallment Float? // The calculated monthly payment amount
   isRestructured    Boolean  @default(false)
   restructureNotes  String?
+  mpesaB2CRequestId String? @unique
 
   // Relation
   membership   Membership @relation(fields: [membershipId], references: [id], onDelete: Cascade)

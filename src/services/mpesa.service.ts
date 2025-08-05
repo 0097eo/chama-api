@@ -65,7 +65,7 @@ export const initiateStkPush = async (phone: string, amount: number, contributio
 
     const shortCode = process.env.MPESA_BUSINESS_SHORT_CODE!;
     const passkey = process.env.MPESA_PASSKEY!;
-    const callbackURL = process.env.MPESA_CALLBACK_URL!;
+    const callbackURL = `${process.env.MPESA_CALLBACK_URL}/api/payments/callback`;
     const baseURL = process.env.MPESA_API_BASE_URL!;
     
     const timestamp = format(new Date(), 'yyyyMMddHHmmss');
@@ -114,3 +114,94 @@ export const initiateStkPush = async (phone: string, amount: number, contributio
         throw new Error('Failed to initiate M-Pesa STK Push.');
     }
 };
+
+/**
+ * Queries the status of a previously initiated M-Pesa STK Push transaction.
+ * @params checkoutRequestId - The ID of the checkout request to query.
+ * @returns The response from the Daraja API.
+ */
+
+export const queryStkStatus = async (checkoutRequestId: string) => {
+    const token = await getAccessToken();
+    const shortCode = process.env.MPESA_BUSINESS_SHORT_CODE!;
+    const baseURL = process.env.MPESA_API_BASE_URL!;
+    const passkey = process.env.MPESA_PASSKEY!;
+    const timestamp = format(new Date(), 'yyyyMMddHHmmss');
+    const password = Buffer.from(`${shortCode}${passkey}${timestamp}`).toString('base64');
+
+    const payload = {
+        BusinessShortCode: shortCode,
+        Password: password,
+        Timestamp: timestamp,
+        CheckoutRequestID: checkoutRequestId,
+    };
+
+    try {
+        const response = await axios.post(`${baseURL}/mpesa/stkpushquery/v1/query`, payload, {
+            headers: {
+                Authorization: `Bearer ${token}`,
+            },
+        })
+        return response.data;
+    }catch (error) {
+        if (axios.isAxiosError(error) && error.response?.data) {
+            // Re-throw the specific error message from Safaricom
+            console.error('STK Push Query Error:', error.response?.data || error.message);
+            throw new Error(JSON.stringify(error.response.data));
+        } else if (isErrorWithMessage(error)) {
+            throw new Error(error.message);
+        }
+        throw new Error('Failed to query M-Pesa STK Push status.');
+    }
+}
+
+/**
+ * Initiates a B2C payment to a mobile number.
+ * NOTE: B2C requires a seperate, more stringent approval from Safaricom.
+ * @param phone - The recipient's phone number in 254... format.
+ * @param amount - The amount to be sent.
+ * @param remarks - A description of the transaction.
+ * @return The response from the Daraja API.
+ */
+
+export const initiateB2CPayment = async (phone: string, amount: number, remarks: string) => {
+    const token = await getAccessToken();
+    const shortCode = process.env.MPESA_BUSINESS_SHORT_CODE!;
+    const baseURL = process.env.MPESA_API_BASE_URL!;
+
+    //NOTE: For B2C, you need different credentials: an initiator name and security credential.
+    const initiatorName = process.env.MPESA_B2C_INITIATOR_NAME!;
+    const securityCredential = process.env.MPESA_B2C_SECURITY_CREDENTIAL!;
+
+    const payload = {
+        InitiatorName: initiatorName,
+        SecurityCredential: securityCredential,
+        CommandID: 'BusinessPayment',
+        Amount: amount,
+        PartyA: shortCode,
+        PartyB: phone,
+        Remarks: remarks,
+        QueueTimeOutURL: `${process.env.MPESA_CALLBACK_URL}/api/payments/b2c-timeout`,
+        ResultURL: `${process.env.MPESA_CALLBACK_URL}/api/payments/b2c-result`,
+        Occassion: `Payment to ${phone}`,
+    }
+
+    try {
+        const response = await axios.post(`${baseURL}/mpesa/b2c/v1/paymentrequest`, payload, {
+            headers: {
+                Authorization: `Bearer ${token}`,
+            },
+        });
+
+        return response.data;
+    } catch (error) {
+        if (axios.isAxiosError(error) && error.response?.data) {
+            // Re-throw the specific error message from Safaricom
+            console.error('B2C Payment Error:', error.response?.data || error.message);
+            throw new Error(JSON.stringify(error.response.data));
+        } else if (isErrorWithMessage(error)) {
+            throw new Error(error.message);
+        }
+        throw new Error('Failed to initiate M-Pesa B2C payment.');
+    }
+}

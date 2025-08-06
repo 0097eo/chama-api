@@ -68,6 +68,12 @@ enum AuditAction {
   CHAMA_MEMBER_ROLE_UPDATE
 }
 
+enum MeetingStatus {
+  SCHEDULED
+  COMPLETED
+  CANCELLED
+}
+
 
 
 // User model for authentication and personal details
@@ -205,7 +211,8 @@ model Meeting {
   agenda      String
   scheduledFor DateTime
   location    String
-  status      String   @default("SCHEDULED") // SCHEDULED, COMPLETED, CANCELED
+  status      MeetingStatus @default(SCHEDULED)
+  minutes     String?
 
   // Relation
   chama   Chama  @relation(fields: [chamaId], references: [id], onDelete: Cascade)

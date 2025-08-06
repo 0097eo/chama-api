@@ -63,3 +63,57 @@ export const checkLoanPermission = (allowedRoles: MembershipRole[]) => {
     }
   };
 };
+
+/**
+ * Checks if a user has a specific role in a Chama, but derives the Chama ID
+ * from a Meeting ID provided in the request parameters.
+ *
+ * This is used for actions on a specific meeting, like generating a QR code or saving minutes.
+ */
+export const checkMeetingPermission = (allowedRoles: MembershipRole[]) => {
+  return async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      const actorId = req.user?.id;
+      const meetingId = req.params.id;
+
+      if (!actorId) {
+        return res.status(401).json({ message: 'Authentication required.' });
+      }
+      if (!meetingId) {
+        return res.status(400).json({ message: 'Meeting ID parameter is missing.' });
+      }
+
+      const meeting = await prisma.meeting.findUnique({
+        where: { id: meetingId },
+        select: { chamaId: true }, // Select only what we need
+      });
+
+      if (!meeting) {
+        return res.status(404).json({ message: 'Meeting not found.' });
+      }
+
+      const chamaId = meeting.chamaId;
+
+      const actorMembership = await prisma.membership.findUnique({
+        where: {
+          userId_chamaId: {
+            userId: actorId,
+            chamaId: chamaId,
+          },
+        },
+      });
+
+      if (!actorMembership || !actorMembership.isActive) {
+        return res.status(403).json({ message: 'Access Denied: You are not an active member of this chama.' });
+      }
+
+      if (!allowedRoles.includes(actorMembership.role)) {
+        return res.status(403).json({ message: `Access Denied: This action requires one of the following roles: ${allowedRoles.join(', ')}.` });
+      }
+
+      next();
+    } catch (error) {
+      res.status(500).json({ message: 'Internal server error during meeting permission check.' });
+    }
+  };
+};

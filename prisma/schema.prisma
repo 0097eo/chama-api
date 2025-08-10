@@ -1,9 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
-
 generator client {
   provider = "prisma-client-js"
   output   = "../src/generated/prisma"
@@ -12,6 +6,219 @@ generator client {
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String         @id @default(cuid())
+  email         String         @unique
+  phone         String         @unique
+  firstName     String
+  lastName      String
+  password      String
+  idNumber      String         @unique
+  role          UserRole       @default(USER)
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  deletedAt     DateTime?
+  auditTargets  AuditLog[]     @relation("TargetUser")
+  auditLogs     AuditLog[]     @relation("UserActions")
+  uploadedFiles File[]
+  memberships   Membership[]
+  notifications Notification[]
+}
+
+model Chama {
+  id                  String            @id @default(cuid())
+  name                String            @unique
+  description         String?
+  registrationNumber  String?           @unique
+  totalMembers        Int               @default(1)
+  monthlyContribution Float
+  meetingDay          String
+  constitutionUrl     String?
+  createdAt           DateTime          @default(now())
+  auditLogs           AuditLog[]
+  invitations         ChamaInvitation[]
+  files               File[]
+  meetings            Meeting[]
+  members             Membership[]
+  transactions        Transaction[]
+}
+
+model Membership {
+  id                String              @id @default(cuid())
+  role              MembershipRole      @default(MEMBER)
+  joinedAt          DateTime            @default(now())
+  isActive          Boolean             @default(true)
+  userId            String
+  chamaId           String
+  sentInvitations   ChamaInvitation[]
+  contributions     Contribution[]
+  loans             Loan[]
+  meetingAttendance MeetingAttendance[]
+  chama             Chama               @relation(fields: [chamaId], references: [id], onDelete: Cascade)
+  user              User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, chamaId])
+  @@index([userId])
+  @@index([chamaId])
+}
+
+model Contribution {
+  id              String             @id @default(cuid())
+  amount          Float
+  month           Int
+  year            Int
+  paymentMethod   String             @default("MPESA")
+  mpesaCode       String?            @unique
+  paidAt          DateTime?
+  status          ContributionStatus @default(PENDING)
+  membershipId    String
+  penaltyApplied  Float?             @default(0.0)
+  mpesaCheckoutId String?
+  membership      Membership         @relation(fields: [membershipId], references: [id], onDelete: Cascade)
+
+  @@index([membershipId])
+}
+
+model Loan {
+  id                 String        @id @default(cuid())
+  amount             Float
+  interestRate       Float
+  duration           Int
+  purpose            String
+  status             LoanStatus    @default(PENDING)
+  appliedAt          DateTime      @default(now())
+  approvedAt         DateTime?
+  dueDate            DateTime?
+  membershipId       String
+  disbursedAt        DateTime?
+  isRestructured     Boolean       @default(false)
+  monthlyInstallment Float?
+  repaymentAmount    Float?
+  restructureNotes   String?
+  mpesaB2CRequestId  String?       @unique
+  membership         Membership    @relation(fields: [membershipId], references: [id], onDelete: Cascade)
+  payments           LoanPayment[]
+
+  @@index([membershipId])
+}
+
+model LoanPayment {
+  id            String   @id @default(cuid())
+  amount        Float
+  paidAt        DateTime @default(now())
+  mpesaCode     String?  @unique
+  loanId        String
+  paymentMethod String
+  loan          Loan     @relation(fields: [loanId], references: [id], onDelete: Cascade)
+
+  @@index([loanId])
+}
+
+model Meeting {
+  id           String              @id @default(cuid())
+  title        String
+  agenda       String
+  scheduledFor DateTime
+  location     String
+  chamaId      String
+  minutes      String?
+  status       MeetingStatus       @default(SCHEDULED)
+  chama        Chama               @relation(fields: [chamaId], references: [id], onDelete: Cascade)
+  attendance   MeetingAttendance[]
+
+  @@index([chamaId])
+}
+
+model MeetingAttendance {
+  id           String     @id @default(cuid())
+  attendedAt   DateTime   @default(now())
+  meetingId    String
+  membershipId String
+  meeting      Meeting    @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+  membership   Membership @relation(fields: [membershipId], references: [id], onDelete: Cascade)
+
+  @@unique([meetingId, membershipId])
+  @@index([meetingId])
+  @@index([membershipId])
+}
+
+model Transaction {
+  id          String          @id @default(cuid())
+  type        TransactionType
+  amount      Float
+  description String
+  createdAt   DateTime        @default(now())
+  chamaId     String
+  chama       Chama           @relation(fields: [chamaId], references: [id], onDelete: Cascade)
+
+  @@index([chamaId])
+}
+
+model Notification {
+  id        String           @id @default(cuid())
+  title     String
+  message   String
+  type      NotificationType
+  read      Boolean          @default(false)
+  createdAt DateTime         @default(now())
+  userId    String
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model AuditLog {
+  id        String      @id @default(cuid())
+  action    AuditAction
+  oldValue  Json?
+  newValue  Json?
+  userId    String
+  targetId  String
+  createdAt DateTime    @default(now())
+  chamaId   String?
+  chama     Chama?      @relation(fields: [chamaId], references: [id], onDelete: Cascade)
+  target    User        @relation("TargetUser", fields: [targetId], references: [id])
+  user      User        @relation("UserActions", fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([targetId])
+  @@index([chamaId])
+}
+
+model ChamaInvitation {
+  id        String     @id @default(cuid())
+  code      String     @unique @default(cuid())
+  expiresAt DateTime
+  chamaId   String
+  email     String
+  phone     String?
+  inviterId String
+  createdAt DateTime   @default(now())
+  chama     Chama      @relation(fields: [chamaId], references: [id], onDelete: Cascade)
+  inviter   Membership @relation(fields: [inviterId], references: [id])
+
+  @@index([chamaId])
+  @@index([email])
+}
+
+model File {
+  id         String   @id @default(cuid())
+  filename   String
+  url        String
+  publicId   String   @unique
+  fileType   String
+  size       Int
+  category   String   @default("document")
+  uploadedAt DateTime @default(now())
+  chamaId    String
+  uploaderId String?
+  chama      Chama    @relation(fields: [chamaId], references: [id], onDelete: Cascade)
+  uploader   User?    @relation(fields: [uploaderId], references: [id])
+
+  @@index([chamaId])
+  @@index([uploaderId])
 }
 
 enum UserRole {
@@ -60,7 +267,6 @@ enum AuditAction {
   USER_UPDATE
   USER_DELETE
   USER_INVITE
-
   CHAMA_UPDATE
   CHAMA_DELETE
   CHAMA_MEMBER_ADD
@@ -72,275 +278,4 @@ enum MeetingStatus {
   SCHEDULED
   COMPLETED
   CANCELLED
-}
-
-
-
-// User model for authentication and personal details
-model User {
-  id        String   @id @default(cuid())
-  email     String   @unique
-  phone     String   @unique
-  firstName String
-  lastName  String
-  password  String // Will be a hashed password
-  idNumber  String   @unique
-  role      UserRole @default(USER)
-
-  deletedAt DateTime?
-
-  memberships  Membership[]
-  notifications Notification[]
-  uploadedFiles File[]
-
-  auditLogs     AuditLog[]     @relation("UserActions") // User who performed the action
-  auditTargets  AuditLog[]     @relation("TargetUser")  // User who was the target of the action
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-}
-
-// Chama model for group details
-model Chama {
-  id                 String   @id @default(cuid())
-  name               String   @unique
-  description        String?
-  registrationNumber String?  @unique
-  totalMembers       Int      @default(1)
-  monthlyContribution Float
-  meetingDay         String // e.g., "Last Sunday of the month"
-  constitutionUrl    String?
-
-  members     Membership[]
-  meetings    Meeting[]
-  transactions Transaction[]
-  invitations ChamaInvitation[]
-  auditLogs AuditLog[]
-  files       File[] 
-
-  createdAt DateTime @default(now())
-}
-
-// Membership model linking Users and Chamas
-model Membership {
-  id      String         @id @default(cuid())
-  role    MembershipRole @default(MEMBER)
-  joinedAt DateTime       @default(now())
-  isActive Boolean        @default(true)
-
-  // Relations
-  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
-  userId String
-  chama  Chama  @relation(fields: [chamaId], references: [id], onDelete: Cascade)
-  chamaId String
-
-  contributions     Contribution[]
-  loans             Loan[]
-  meetingAttendance MeetingAttendance[]
-  sentInvitations ChamaInvitation[]
-
-  // A user can only be a member of a specific chama once
-  @@unique([userId, chamaId])
-  @@index([userId])
-  @@index([chamaId])
-}
-
-// Contribution model for member payments
-model Contribution {
-  id         String             @id @default(cuid())
-  amount     Float
-  penaltyApplied Float?        @default(0.0) // To store penalty amount for late payment
-  month      Int // e.g., 7 for July
-  year       Int // e.g., 2025
-  paymentMethod String         @default("MPESA")
-  mpesaCode  String?            @unique
-  mpesaCheckoutId String?
-  paidAt     DateTime?
-  status     ContributionStatus @default(PENDING)
-
-  // Relation
-  membership   Membership @relation(fields: [membershipId], references: [id], onDelete: Cascade)
-  membershipId String
-
-  @@index([membershipId])
-}
-
-// Loan model for members borrowing funds
-model Loan {
-  id          String     @id @default(cuid())
-  amount      Float
-  interestRate Float
-  duration    Int // Duration in months
-  purpose     String
-  status      LoanStatus @default(PENDING)
-  appliedAt   DateTime   @default(now())
-  disbursedAt DateTime? 
-  approvedAt  DateTime?
-  dueDate     DateTime?
-  repaymentAmount   Float? // Total amount to be paid back (principal + interest)
-  monthlyInstallment Float? // The calculated monthly payment amount
-  isRestructured    Boolean  @default(false)
-  restructureNotes  String?
-  mpesaB2CRequestId String? @unique
-
-  // Relation
-  membership   Membership @relation(fields: [membershipId], references: [id], onDelete: Cascade)
-  membershipId String
-  payments     LoanPayment[]
-
-  @@index([membershipId])
-}
-
-// LoanPayment model for tracking loan repayments
-model LoanPayment {
-  id        String   @id @default(cuid())
-  amount    Float
-  paidAt    DateTime @default(now())
-  paymentMethod String
-  mpesaCode String?  @unique
-
-  // Relation
-  loan   Loan   @relation(fields: [loanId], references: [id], onDelete: Cascade)
-  loanId String
-
-  @@index([loanId])
-}
-
-// Meeting model for scheduling group meetings
-model Meeting {
-  id          String   @id @default(cuid())
-  title       String
-  agenda      String
-  scheduledFor DateTime
-  location    String
-  status      MeetingStatus @default(SCHEDULED)
-  minutes     String?
-
-  // Relation
-  chama   Chama  @relation(fields: [chamaId], references: [id], onDelete: Cascade)
-  chamaId String
-  attendance MeetingAttendance[]
-
-  @@index([chamaId])
-}
-
-// MeetingAttendance to track who attended which meeting
-model MeetingAttendance {
-  id         String   @id @default(cuid())
-  attendedAt DateTime @default(now())
-
-  // Relations
-  meeting      Meeting    @relation(fields: [meetingId], references: [id], onDelete: Cascade)
-  meetingId    String
-  membership   Membership @relation(fields: [membershipId], references: [id], onDelete: Cascade)
-  membershipId String
-
-  // A member can only be marked as attended once per meeting
-  @@unique([meetingId, membershipId])
-  @@index([meetingId])
-  @@index([membershipId])
-}
-
-// Transaction model for general financial activities of the chama
-model Transaction {
-  id          String          @id @default(cuid())
-  type        TransactionType
-  amount      Float
-  description String
-  createdAt   DateTime        @default(now())
-
-  // Relation
-  chama   Chama  @relation(fields: [chamaId], references: [id], onDelete: Cascade)
-  chamaId String
-
-  @@index([chamaId])
-}
-
-// Notification model for user alerts
-model Notification {
-  id      String           @id @default(cuid())
-  title   String
-  message String
-  type    NotificationType
-  read    Boolean          @default(false)
-  createdAt DateTime       @default(now())
-
-  // Relation
-  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
-  userId String
-
-  @@index([userId])
-}
-
-// AuditLog model
-model AuditLog {
-  id        String      @id @default(cuid())
-  action    AuditAction
-  oldValue  Json?       // What the data looked like before
-  newValue  Json?       // What the data looks like now
-
-  // Relation to the user who performed the action (the admin)
-  user      User     @relation("UserActions", fields: [userId], references: [id])
-  userId    String
-
-  // Relation to the user who was affected
-  target    User    @relation("TargetUser", fields: [targetId], references: [id])
-  targetId  String
-  
-  chama     Chama?   @relation(fields: [chamaId], references: [id], onDelete: Cascade)
-  chamaId   String?  
-
-  createdAt DateTime @default(now())
-
-  @@index([userId])
-  @@index([targetId])
-  @@index([chamaId]) 
-}
-
-// Model for chama invitation
-model ChamaInvitation {
-  id        String   @id @default(cuid())
-  code      String   @unique @default(cuid())
-  expiresAt DateTime
-
-  // Relation to the Chama
-  chama   Chama  @relation(fields: [chamaId], references: [id], onDelete: Cascade)
-  chamaId String
-
-  // Who is being invited
-  email   String
-  phone   String?
-
-  // Who sent the invitation
-  inviter   Membership @relation(fields: [inviterId], references: [id])
-  inviterId String
-
-  createdAt DateTime @default(now())
-
-  @@index([chamaId])
-  @@index([email])
-}
-
-// To store metadata for uploaded files
-model File {
-  id        String   @id @default(cuid())
-  filename  String   // Original name of the file
-  url       String   // The secure URL from Cloudinary
-  publicId  String   @unique // The unique ID for the file on Cloudinary (for deletion)
-  fileType  String   // e.g., 'application/pdf', 'image/jpeg'
-  size      Int      // Size in bytes
-  category  String   @default("document") // e.g., 'receipt', 'constitution', 'member_id'
-
-  uploadedAt DateTime @default(now())
-
-  // Relation to the Chama
-  chama     Chama  @relation(fields: [chamaId], references: [id], onDelete: Cascade)
-  chamaId   String
-
-  // Relation to the user who uploaded the file
-  uploader   User?   @relation(fields: [uploaderId], references: [id], onDelete: SetNull)
-  uploaderId String?
-
-  @@index([chamaId])
-  @@index([uploaderId])
 }

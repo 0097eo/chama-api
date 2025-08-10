@@ -25,7 +25,7 @@ export const uploadFile = async (req: AuthenticatedRequest, res: Response) => {
         const fileData = {
             filename: file.originalname,
             url: file.path,
-            publicId: file.public_id,
+            publicId: file.filename, 
             fileType: file.mimetype,
             size: file.size,
             category: req.body.category,
@@ -40,14 +40,12 @@ export const uploadFile = async (req: AuthenticatedRequest, res: Response) => {
         if (error instanceof multer.MulterError) {
             return res.status(400).json({ message: `File upload error: ${error.message}` });
         }
-
         if (isErrorWithMessage(error)) {
             if (error.message.includes('File type not supported')) {
                 return res.status(415).json({ message: error.message });
             }
             return res.status(500).json({ message: error.message });
         }
-        
         console.error('File Upload Error:', error);
         res.status(500).json({ message: 'An unexpected error occurred during file upload. This could be a network issue.' });
     }
@@ -68,7 +66,6 @@ export const getFileDetails = async (req: AuthenticatedRequest, res: Response) =
     try {
         const { id } = req.params;
         const actorId = req.user?.id!;
-
         const file = await prisma.file.findUnique({ where: { id } });
         if (!file) {
             return res.status(404).json({ message: 'File not found.' });
@@ -92,12 +89,10 @@ export const deleteFile = async (req: AuthenticatedRequest, res: Response) => {
     try {
         const { id } = req.params;
         const actorId = req.user?.id!;
-
         const file = await prisma.file.findUnique({ where: { id } });
         if (!file) {
             return res.status(404).json({ message: 'File not found.' });
         }
-
         // Permission check: User must be an Admin/Secretary of the file's chama to delete it
         const membership = await prisma.membership.findFirst({
             where: {
@@ -109,10 +104,8 @@ export const deleteFile = async (req: AuthenticatedRequest, res: Response) => {
         if (!membership) {
             return res.status(403).json({ message: "Permission Denied: Only an Admin or Secretary can delete files." });
         }
-
         await fileService.deleteFile(id);
         res.status(200).json({ message: 'File deleted successfully.' });
-
     } catch (error) {
         if (isErrorWithMessage(error)) return res.status(500).json({ message: error.message });
         res.status(500).json({ message: 'An unexpected error occurred.' });

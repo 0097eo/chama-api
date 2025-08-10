@@ -40,3 +40,39 @@ export const uploadCsv = multer({
   fileFilter: csvFileFilter,
   limits: { fileSize: 1024 * 1024 * 2 }, // 2 MB limit for CSV files
 });
+
+// --- Generic Cloudinary Storage for Various Files ---
+const genericFileStorage = new CloudinaryStorage({
+  cloudinary: cloudinary,
+  params: async (req: Request, file: Express.Multer.File) => {
+
+    const chamaId = req.params.chamaId || 'uncategorized';
+    const category = req.body.category || 'general';
+    const folderPath = `chamas/${chamaId}/${category}`;
+    
+    // Create a more unique public_id to avoid overwrites
+    const originalName = file.originalname.split('.').slice(0, -1).join('.');
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    
+    return {
+      folder: folderPath,
+      public_id: `${originalName}-${uniqueSuffix}`,
+    };
+  },
+});
+
+export const uploadGenericFile = multer({
+  storage: genericFileStorage,
+  limits: { fileSize: 1024 * 1024 * 10 }, // 10 MB file size limit
+  fileFilter: (req, file, cb) => {
+    // Example: Restrict to common document and image types
+    const allowedTypes = /jpeg|jpg|png|pdf|doc|docx|xls|xlsx/;
+    const mimetype = allowedTypes.test(file.mimetype);
+    const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
+
+    if (mimetype && extname) {
+      return cb(null, true);
+    }
+    cb(new Error('File type not supported.'));
+  }
+});

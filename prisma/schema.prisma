@@ -91,6 +91,7 @@ model User {
 
   memberships  Membership[]
   notifications Notification[]
+  uploadedFiles File[]
 
   auditLogs     AuditLog[]     @relation("UserActions") // User who performed the action
   auditTargets  AuditLog[]     @relation("TargetUser")  // User who was the target of the action
@@ -115,6 +116,7 @@ model Chama {
   transactions Transaction[]
   invitations ChamaInvitation[]
   auditLogs AuditLog[]
+  files       File[] 
 
   createdAt DateTime @default(now())
 }
@@ -317,4 +319,28 @@ model ChamaInvitation {
 
   @@index([chamaId])
   @@index([email])
+}
+
+// To store metadata for uploaded files
+model File {
+  id        String   @id @default(cuid())
+  filename  String   // Original name of the file
+  url       String   // The secure URL from Cloudinary
+  publicId  String   @unique // The unique ID for the file on Cloudinary (for deletion)
+  fileType  String   // e.g., 'application/pdf', 'image/jpeg'
+  size      Int      // Size in bytes
+  category  String   @default("document") // e.g., 'receipt', 'constitution', 'member_id'
+
+  uploadedAt DateTime @default(now())
+
+  // Relation to the Chama
+  chama     Chama  @relation(fields: [chamaId], references: [id], onDelete: Cascade)
+  chamaId   String
+
+  // Relation to the user who uploaded the file
+  uploader   User?   @relation(fields: [uploaderId], references: [id], onDelete: SetNull)
+  uploaderId String?
+
+  @@index([chamaId])
+  @@index([uploaderId])
 }

@@ -1,15 +1,34 @@
 // src/services/notification.service.ts
 import nodemailer from 'nodemailer';
+import AfricasTalking from 'africastalking';
+import { PrismaClient } from '../generated/prisma';
+import { NotificationType, Prisma, User } from '../generated/prisma';
+
+const prisma = new PrismaClient();
+
+const atCredentials = {
+    apiKey: process.env.AT_API_KEY!,
+    username: process.env.AT_USERNAME!,
+};
+const africasTalking = AfricasTalking(atCredentials);
+const sms = africasTalking.SMS;
 
 const transporter = nodemailer.createTransport({
-  host: process.env.SMTP_HOST,
-  port: Number(process.env.SMTP_PORT),
-  secure: Number(process.env.SMTP_PORT) === 465, // true for 465, false for other ports
+  host: process.env.EMAIL_HOST,
+  port: Number(process.env.EMAIL_PORT),
+  secure: Number(process.env.EMAIL_PORT) === 465, // true for 465, false for other ports
   auth: {
-    user: process.env.SMTP_USER,
-    pass: process.env.SMTP_PASS,
+    user: process.env.EMAIL_USER,
+    pass: process.env.EMAIL_PASS,
   },
 });
+
+interface NotificationData {
+    userId: string;
+    title: string;
+    message: string;
+    type: NotificationType;
+}
 
 export const sendInvitationEmail = async (email: string, inviterName: string) => {
   const mailOptions = {
@@ -22,4 +41,68 @@ export const sendInvitationEmail = async (email: string, inviterName: string) =>
   await transporter.sendMail(mailOptions);
 };
 
-// Todo -  Add an SMS function here using Africa's Talking SDK later
+/**
+ * Creates a notification record in the database.
+ */
+export const createNotification = (data: NotificationData) => {
+    return prisma.notification.create({ data });
+};
+
+/**
+ * Creates a notification for multiple users at once (broadcast).
+ * @param userIds - An array of user IDs to send the notification to.
+ */
+export const createBulkNotifications = async (userIds: string[], title: string, message: string, type: NotificationType) => {
+    const notificationsData = userIds.map(userId => ({
+        userId,
+        title,
+        message,
+        type,
+    }));
+
+    // Create all notifications in the database
+    await prisma.notification.createMany({
+        data: notificationsData,
+    });
+
+    // In a real app, you would also trigger background jobs to send SMS/email here
+    // For simplicity, we'll log it.
+    console.log(`Bulk notifications created for ${userIds.length} users.`);
+};
+
+/**
+ * Sends an SMS using Africa's Talking.
+ */
+export const sendSms = async (to: string[], message: string) => {
+    try {
+        const response = await sms.send({
+            to,
+            message,
+            from: process.env.AT_SENDER_ID, // Optional Sender ID
+        });
+        console.log('SMS sent successfully:', response);
+        return response;
+    } catch (error) {
+        console.error('SMS sending error:', error);
+        throw new Error('Failed to send SMS.');
+    }
+};
+
+/**
+ * Sends an email using Nodemailer.
+ */
+export const sendEmail = async (to: string, subject: string, html: string) => {
+    try {
+        const info = await transporter.sendMail({
+            from: process.env.EMAIL_FROM,
+            to,
+            subject,
+            html, // HTML body
+        });
+        console.log('Email sent successfully:', info.messageId);
+        return info;
+    } catch (error) {
+        console.error('Email sending error:', error);
+        throw new Error('Failed to send email.');
+    }
+};

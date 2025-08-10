@@ -1,7 +1,9 @@
 import { PrismaClient } from '../generated/prisma/client';
-import { Meeting, Prisma, MeetingStatus } from '../generated/prisma/client';
+import { Meeting, Prisma, NotificationType, MeetingStatus } from '../generated/prisma/client';
 import qrcode from 'qrcode';
 import * as ics from 'ics';
+import { createBulkNotifications } from './notification.service';
+
 
 const prisma = new PrismaClient();
 
@@ -11,8 +13,25 @@ const prisma = new PrismaClient();
 export const scheduleMeeting = async (data: Prisma.MeetingCreateInput) => {
     const meeting = await prisma.meeting.create({ data });
 
-    // TODO send SMS/email notifications to all members of the chama.
-    // e.g., NotificationService.sendMeetingScheduledAlert(meeting.chamaId, meeting.id);
+    if (meeting) {
+        // Find all active members of the chama
+        const members = await prisma.membership.findMany({
+            where: { chamaId: meeting.chamaId, isActive: true },
+            select: { userId: true },
+        });
+
+        const userIds = members.map(m => m.userId);
+
+        // Create a notification for each member
+        if (userIds.length > 0) {
+            await createBulkNotifications(
+                userIds,
+                `New Meeting Scheduled: ${meeting.title}`,
+                `A new meeting has been scheduled for ${new Date(meeting.scheduledFor).toLocaleString()}. Please check the app for details.`,
+                NotificationType.GENERAL // Or a new "MEETING_SCHEDULED" type if you add it
+            );
+        }
+    }
 
     return meeting;
 };

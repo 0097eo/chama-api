@@ -13,6 +13,7 @@ import mpesaRoutes from './routes/mpesa.routes';
 import meetingRoutes from './routes/meeting.routes'
 import notificationRoutes from './routes/notification.routes';
 import fileRoutes from './routes/files.routes';
+import auditRoutes from './routes/audit.routes';
 // Todo -  import { errorHandler } from './middleware/error.middleware';
 
 dotenv.config();
@@ -46,6 +47,7 @@ app.use('/api/payments', mpesaRoutes);
 app.use('/api/meetings', meetingRoutes)
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/files', fileRoutes);
+app.use('/api/audit', auditRoutes);
 
 // --- Health Check Endpoint ---
 app.get('/', (req, res) => {

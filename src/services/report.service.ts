@@ -164,7 +164,7 @@ const generateExcel = async (data: any[]): Promise<Buffer> => {
     const worksheet = workbook.addWorksheet('Report');
     if (data.length === 0) {
         const buffer = await workbook.csv.writeBuffer();
-        return buffer as Buffer;
+        return Buffer.from(buffer);
     }
     const simpleData = data.map(d => ({
         memberName: `${d.membership.user.firstName} ${d.membership.user.lastName}`,
@@ -178,7 +178,7 @@ const generateExcel = async (data: any[]): Promise<Buffer> => {
     worksheet.columns = Object.keys(simpleData[0]).map(key => ({ header: key, key, width: 25 }));
     worksheet.addRows(simpleData);
     const buffer = await workbook.csv.writeBuffer();
-    return buffer as Buffer;
+    return Buffer.from(buffer);
 };
 
 const generatePdf = (data: any[]): Promise<Buffer> => {

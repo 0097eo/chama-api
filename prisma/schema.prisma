@@ -77,6 +77,7 @@ model Contribution {
   penaltyApplied  Float?             @default(0.0)
   mpesaCheckoutId String?
   membership      Membership         @relation(fields: [membershipId], references: [id], onDelete: Cascade)
+  auditLogs       AuditLog[]         @relation("ContributionAudit")
 
   @@index([membershipId])
 }
@@ -100,6 +101,7 @@ model Loan {
   mpesaB2CRequestId  String?       @unique
   membership         Membership    @relation(fields: [membershipId], references: [id], onDelete: Cascade)
   payments           LoanPayment[]
+  auditLogs          AuditLog[]    @relation("LoanAudit")
 
   @@index([membershipId])
 }
@@ -127,6 +129,7 @@ model Meeting {
   status       MeetingStatus       @default(SCHEDULED)
   chama        Chama               @relation(fields: [chamaId], references: [id], onDelete: Cascade)
   attendance   MeetingAttendance[]
+  auditLogs    AuditLog[]          @relation("MeetingAudit")
 
   @@index([chamaId])
 }
@@ -177,17 +180,26 @@ model AuditLog {
   ipAddress String?
   userAgent String?
   userId    String
-  targetId  String
+  targetId  String?
   createdAt DateTime    @default(now())
   chamaId   String?
+  contributionId String?
   chama     Chama?      @relation(fields: [chamaId], references: [id], onDelete: Cascade)
-  target    User        @relation("TargetUser", fields: [targetId], references: [id])
+  target    User?       @relation("TargetUser", fields: [targetId], references: [id])
   user      User        @relation("UserActions", fields: [userId], references: [id])
+  contribution   Contribution?  @relation("ContributionAudit", fields: [contributionId], references: [id], onDelete: SetNull)
+  loan           Loan?         @relation("LoanAudit", fields: [loanId], references: [id], onDelete: SetNull)
+  loanId         String?
+  meeting        Meeting?      @relation("MeetingAudit", fields: [meetingId], references: [id], onDelete: SetNull)
+  meetingId      String?
 
   @@index([userId])
   @@index([targetId])
   @@index([chamaId])
   @@index([action])
+  @@index([contributionId])
+  @@index([loanId])
+  @@index([meetingId])
 }
 
 model ChamaInvitation {
@@ -275,6 +287,20 @@ enum AuditAction {
   CHAMA_MEMBER_ADD
   CHAMA_MEMBER_REMOVE
   CHAMA_MEMBER_ROLE_UPDATE
+  CONTRIBUTION_CREATE
+  CONTRIBUTION_UPDATE
+  CONTRIBUTION_DELETE
+  LOAN_APPLY
+  LOAN_APPROVE
+  LOAN_REJECT
+  LOAN_DISBURSE
+  LOAN_REPAYMENT
+  LOAN_RESTRUCTURE
+  MEETING_SCHEDULE
+  MEETING_UPDATE
+  MEETING_CANCEL
+  MEETING_ATTENDANCE_MARK
+  MEETING_MINUTES_SAVE
 }
 
 enum MeetingStatus {

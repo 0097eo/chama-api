@@ -1,5 +1,11 @@
-import { PrismaClient, Loan, LoanStatus, Prisma, TransactionType } from "../generated/prisma";
+import { PrismaClient, Loan, LoanStatus, Prisma, TransactionType, AuditAction } from "../generated/prisma";
 import { addMonths, format } from 'date-fns';
+import { createAuditLog } from "./audit.service";
+
+interface LogMeta {
+    ipAddress?: string;
+    userAgent?: string;
+}
 
 const prisma = new PrismaClient();
 
@@ -48,7 +54,7 @@ export const generateRepaymentSchedule = (loan: Loan) => {
 };
 
 
-export const applyForLoan = async (data: Prisma.LoanCreateInput, membershipId: string, actorId: string) => {
+export const applyForLoan = async (data: Prisma.LoanCreateInput, membershipId: string, actorId: string, logMeta: LogMeta) => {
     if (membershipId !== data.membership.connect?.id) throw new Error("A member can only apply for a loan for themselves.");
     const member = await prisma.membership.findFirst({ where: { id: membershipId, userId: actorId }});
     if(!member) throw new Error("Membership not found for the authenticated user.");
@@ -58,93 +64,109 @@ export const applyForLoan = async (data: Prisma.LoanCreateInput, membershipId: s
         throw new Error(`Loan application rejected. You are only eligible to borrow up to ${maxLoanable.toFixed(2)}.`);
     }
 
-    return prisma.loan.create({ data });
+    const newLoan = await prisma.loan.create({ data });
+
+    await createAuditLog({
+        action: AuditAction.LOAN_APPLY,
+        actorId,
+        chamaId: member.chamaId,
+        loanId: newLoan.id,
+        newValue: newLoan,
+        ...logMeta,
+    });
+
+    return newLoan;
 };
 
-export const approveOrRejectLoan = async (loanId: string, status: LoanStatus) => {
-    const loan = await prisma.loan.findUnique({ where: { id: loanId } });
-    if (!loan || loan.status !== LoanStatus.PENDING) throw new Error("Loan not found or cannot be updated.");
+export const approveOrRejectLoan = async (loanId: string, status: LoanStatus, actorId: string, logMeta: LogMeta) => {
+    const oldValue = await prisma.loan.findUnique({ where: { id: loanId }, include: { membership: true } });
+    if (!oldValue || oldValue.status !== LoanStatus.PENDING) throw new Error("Loan not found or cannot be updated.");
 
+    let updatedLoan;
     if (status === LoanStatus.REJECTED) {
-        return prisma.loan.update({ where: { id: loanId }, data: { status: LoanStatus.REJECTED } });
-    }
-
-    if (status !== LoanStatus.APPROVED) {
+        updatedLoan = await prisma.loan.update({ where: { id: loanId }, data: { status: LoanStatus.REJECTED } });
+    } else if (status === LoanStatus.APPROVED) {
+        const totalInterest = oldValue.amount * oldValue.interestRate * (oldValue.duration / 12);
+        const repaymentAmount = oldValue.amount + totalInterest;
+        const monthlyInstallment = repaymentAmount / oldValue.duration;
+        updatedLoan = await prisma.loan.update({
+            where: { id: loanId },
+            data: { status: LoanStatus.APPROVED, approvedAt: new Date(), repaymentAmount, monthlyInstallment },
+        });
+    } else {
         throw new Error("Invalid status provided. Must be APPROVED or REJECTED.");
     }
 
-    // If approved, calculate repayment details
-    const totalInterest = loan.amount * loan.interestRate * (loan.duration / 12);
-    const repaymentAmount = loan.amount + totalInterest;
-    const monthlyInstallment = repaymentAmount / loan.duration;
-
-    return prisma.loan.update({
-        where: { id: loanId },
-        data: {
-            status: LoanStatus.APPROVED,
-            approvedAt: new Date(),
-            repaymentAmount,
-            monthlyInstallment,
-        },
+    await createAuditLog({
+        action: status === LoanStatus.APPROVED ? AuditAction.LOAN_APPROVE : AuditAction.LOAN_REJECT,
+        actorId,
+        chamaId: oldValue.membership.chamaId,
+        loanId,
+        oldValue,
+        newValue: updatedLoan,
+        ...logMeta,
     });
+
+    return updatedLoan;
 };
 
-export const disburseLoan = async (loanId: string) => {
-    const loan = await prisma.loan.findUnique({ where: { id: loanId } });
-    if (!loan || loan.status !== LoanStatus.APPROVED) throw new Error("Loan must be approved before disbursement.");
+export const disburseLoan = async (loanId: string, actorId: string, logMeta: LogMeta) => {
+    const oldValue = await prisma.loan.findUnique({ where: { id: loanId }, include: { membership: true } });
+    if (!oldValue || oldValue.status !== LoanStatus.APPROVED) throw new Error("Loan must be approved before disbursement.");
 
-    return prisma.$transaction(async (tx) => {
-        const updatedLoan = await tx.loan.update({
+    const updatedLoan = await prisma.$transaction(async (tx) => {
+        const loan = await tx.loan.update({
             where: { id: loanId },
+            data: { status: LoanStatus.ACTIVE, disbursedAt: new Date(), dueDate: addMonths(new Date(), 1) },
+        });
+        await tx.transaction.create({
             data: {
-                status: LoanStatus.ACTIVE,
-                disbursedAt: new Date(),
-                dueDate: addMonths(new Date(), 1),
+                chamaId: oldValue.membership.chamaId,
+                type: TransactionType.LOAN_DISBURSEMENT,
+                amount: -loan.amount,
+                description: `Loan disbursement to member for loan ID: ${loanId}`,
             },
         });
-
-        // Record the disbursement as a transaction for the chama's books
-        const membership = await tx.membership.findUnique({ where: { id: loan.membershipId }});
-        if (membership) {
-            await tx.transaction.create({
-                data: {
-                    chamaId: membership.chamaId,
-                    type: TransactionType.LOAN_DISBURSEMENT,
-                    amount: -loan.amount, // Negative amount as money is going out
-                    description: `Loan disbursement to member for loan ID: ${loanId}`,
-                },
-            });
-        }
-        return updatedLoan;
+        return loan;
     });
+
+    await createAuditLog({
+        action: AuditAction.LOAN_DISBURSE,
+        actorId,
+        chamaId: oldValue.membership.chamaId,
+        loanId,
+        oldValue,
+        newValue: updatedLoan,
+        ...logMeta,
+    });
+    
+    return updatedLoan;
 };
 
-export const recordLoanPayment = async (loanId: string, paymentData: Prisma.LoanPaymentCreateWithoutLoanInput) => {
-    const loan = await prisma.loan.findUnique({
-        where: { id: loanId },
-        include: { payments: true },
-    });
+export const recordLoanPayment = async (loanId: string, paymentData: Prisma.LoanPaymentCreateWithoutLoanInput, actorId: string, logMeta: LogMeta) => {
+    const loan = await prisma.loan.findUnique({ where: { id: loanId }, include: { payments: true, membership: true } });
     if (!loan || loan.status !== LoanStatus.ACTIVE) throw new Error("Cannot record payment for this loan.");
 
     const totalPaid = loan.payments.reduce((sum, p) => sum + p.amount, 0) + paymentData.amount;
     const isFullyPaid = totalPaid >= (loan.repaymentAmount || 0);
 
-    return prisma.$transaction(async (tx) => {
-        await tx.loanPayment.create({
-            data: {
-                loanId: loanId,
-                ...paymentData
-            },
-        });
+    const newPayment = await prisma.loanPayment.create({
+        data: { loanId: loanId, ...paymentData },
+    });
 
-        if (isFullyPaid) {
-            await tx.loan.update({ where: { id: loanId }, data: { status: LoanStatus.PAID, dueDate: null } });
-        } else {
-            // Update the next due date
-            if (loan.dueDate) {
-                await tx.loan.update({ where: { id: loanId }, data: { dueDate: addMonths(loan.dueDate, 1) } });
-            }
-        }
+    if (isFullyPaid) {
+        await prisma.loan.update({ where: { id: loanId }, data: { status: LoanStatus.PAID, dueDate: null } });
+    } else if (loan.dueDate) {
+        await prisma.loan.update({ where: { id: loanId }, data: { dueDate: addMonths(loan.dueDate, 1) } });
+    }
+
+    await createAuditLog({
+        action: AuditAction.LOAN_REPAYMENT,
+        actorId,
+        chamaId: loan.membership.chamaId,
+        loanId,
+        newValue: newPayment,
+        ...logMeta,
     });
 };
 
@@ -162,26 +184,30 @@ export const findLoanDefaulters = async (chamaId: string) => {
     });
 };
 
-export const restructureLoan = async (loanId: string, data: { newInterestRate?: number, newDuration?: number, notes: string }) => {
-    const loan = await prisma.loan.findUnique({ where: { id: loanId } });
-    if (!loan) throw new Error("Loan not found.");
+export const restructureLoan = async (loanId: string, data: { newInterestRate?: number, newDuration?: number, notes: string }, actorId: string, logMeta: LogMeta) => {
+    const oldValue = await prisma.loan.findUnique({ where: { id: loanId }, include: { membership: true } });
+    if (!oldValue) throw new Error("Loan not found.");
 
-    const newInterestRate = data.newInterestRate ?? loan.interestRate;
-    const newDuration = data.newDuration ?? loan.duration;
-
-    const totalInterest = loan.amount * newInterestRate * (newDuration / 12);
-    const repaymentAmount = loan.amount + totalInterest;
+    const newInterestRate = data.newInterestRate ?? oldValue.interestRate;
+    const newDuration = data.newDuration ?? oldValue.duration;
+    const totalInterest = oldValue.amount * newInterestRate * (newDuration / 12);
+    const repaymentAmount = oldValue.amount + totalInterest;
     const monthlyInstallment = repaymentAmount / newDuration;
 
-    return prisma.loan.update({
+    const updatedLoan = await prisma.loan.update({
         where: { id: loanId },
-        data: {
-            interestRate: newInterestRate,
-            duration: newDuration,
-            repaymentAmount,
-            monthlyInstallment,
-            isRestructured: true,
-            restructureNotes: data.notes,
-        },
+        data: { interestRate: newInterestRate, duration: newDuration, repaymentAmount, monthlyInstallment, isRestructured: true, restructureNotes: data.notes },
     });
+
+    await createAuditLog({
+        action: AuditAction.LOAN_RESTRUCTURE,
+        actorId,
+        chamaId: oldValue.membership.chamaId,
+        loanId,
+        oldValue,
+        newValue: updatedLoan,
+        ...logMeta,
+    });
+
+    return updatedLoan;
 };

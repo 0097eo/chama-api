@@ -8,8 +8,11 @@ interface AuditLogData {
   actorId: string;
   targetId?: string;
   chamaId?: string;
-  oldValue?: object;
-  newValue?: object;
+  contributionId?: string;
+  loanId?: string;
+  meetingId?: string;
+  oldValue?: object | null;
+  newValue?: object | null;
   ipAddress?: string;
   userAgent?: string;
 }
@@ -35,6 +38,18 @@ export const createAuditLog = async (data: AuditLogData) => {
 
     if (data.chamaId) {
         logPayload.chamaId = data.chamaId;
+    }
+
+    if (data.contributionId) {
+        logPayload.contributionId = data.contributionId;
+    }
+
+    if (data.loanId) {
+        logPayload.loanId = data.loanId;
+    }
+
+    if (data.meetingId) {
+        logPayload.meetingId = data.meetingId;
     }
 
     await prisma.auditLog.create({

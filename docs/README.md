@@ -120,7 +120,7 @@ The `.env` file is crucial for the application to run. Here are the key variable
 
 For detailed information on all available endpoints, request/response examples, and error codes, please refer to the complete API documentation:
 
-[**View Full API Documentation](./docs/api.md)**
+[**View Full API Documentation](./api.md)**
 
 ### Base URL
 

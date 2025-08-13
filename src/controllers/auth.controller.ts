@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from 'express'; 
 import * as authService from '../services/auth.service';
+import { isErrorWithMessage } from '../utils/error.utils';
 
 // POST /api/auth/register
 export const register = async (req: Request, res: Response, next: NextFunction) => {
@@ -47,5 +48,44 @@ export const updateProfile = async (req: Request, res: Response, next: NextFunct
         res.status(200).json({ success: true, message: 'Profile updated successfully', data: updatedUser });
     } catch (error) {
         next(error);
+    }
+};
+
+// POST /api/auth/verify-email
+export const verifyEmail = async (req: Request, res: Response) => {
+    try {
+        const { token } = req.body;
+        if (!token) return res.status(400).json({ message: 'Token is required.' });
+        await authService.verifyUserEmail(token);
+        res.status(200).json({ message: 'Email verified successfully. You can now log in.' });
+    } catch (error) {
+        if(isErrorWithMessage(error)) return res.status(400).json({ message: error.message });
+        res.status(500).json({ message: 'An unexpected error occurred.' });
+    }
+};
+
+// POST /api/auth/forgot-password
+export const forgotPassword = async (req: Request, res: Response) => {
+    try {
+        const { email } = req.body;
+        if (!email) return res.status(400).json({ message: 'Email is required.' });
+        await authService.requestPasswordReset(email);
+        res.status(200).json({ message: 'If an account with that email exists, a password reset link has been sent.' });
+    } catch (error) {
+        if(isErrorWithMessage(error)) return res.status(500).json({ message: error.message });
+        res.status(500).json({ message: 'An unexpected error occurred.' });
+    }
+};
+
+// POST /api/auth/reset-password
+export const resetPassword = async (req: Request, res: Response) => {
+    try {
+        const { token, password } = req.body;
+        if (!token || !password) return res.status(400).json({ message: 'Token and new password are required.' });
+        await authService.resetUserPassword(token, password);
+        res.status(200).json({ message: 'Password has been reset successfully.' });
+    } catch (error) {
+        if(isErrorWithMessage(error)) return res.status(400).json({ message: error.message });
+        res.status(500).json({ message: 'An unexpected error occurred.' });
     }
 };

@@ -9,6 +9,9 @@ const router = Router();
 // --- PUBLIC ROUTES ---
 router.post('/register', authRateLimiter, ...registerValidator, handleValidationErrors, authController.register);
 router.post('/login', authRateLimiter, ...loginValidator, handleValidationErrors, authController.login);
+router.post('/verify-email', authController.verifyEmail);
+router.post('/forgot-password', authController.forgotPassword);
+router.post('/reset-password', authController.resetPassword);
 
 // --- MIDDLEWARE GATE ---
 router.use(protect);

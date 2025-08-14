@@ -2,13 +2,12 @@ import { Router } from 'express';
 import { protect } from '../middleware/auth.middleware';
 import * as auditController from '../controllers/audit.controller';
 import { UserRole } from '../generated/prisma/client';
+import { checkMembership } from '../middleware/membership.middleware';
 import { checkRole } from '../middleware/rbac.middleware';
 
 const router = Router();
 router.use(protect);
 
-// Only application-level ADMINS can access these logs for compliance.
-router.use(checkRole([UserRole.ADMIN]));
 
 // GET /api/audit/chama/:chamaId - Get all audit logs for a specific chama
 router.get(
@@ -16,7 +15,10 @@ router.get(
     auditController.getChamaAuditLogs
 );
 
+// Only application-level ADMINS can access these logs for compliance.
+router.use(checkRole([UserRole.ADMIN]));
 // GET /api/audit/user/:userId - Get all logs initiated by a specific user
+
 router.get(
     '/user/:userId',
     auditController.getUserActivityLogs

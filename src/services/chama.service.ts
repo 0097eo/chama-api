@@ -68,7 +68,24 @@ export const findUserChamas = (userId: string): Promise<Chama[]> => {
         },
       },
     },
-    orderBy: { createdAt: 'desc' }
+    include: {
+        members: {
+            where: { isActive: true },
+            include: {
+                user: { 
+                    select: {
+                        id: true,
+                        firstName: true,
+                        lastName: true,
+                        email: true,
+                    }
+                }
+            }
+        }
+    },
+    orderBy: {
+        createdAt: 'desc'
+    }
   });
 };
 

@@ -24,6 +24,13 @@ router.post(
     notificationController.broadcastToChama
 );
 
+// POST /api/notifications/reminders/contribution - Send a contribution reminder
+router.post(
+    '/reminders/contribution',
+    protect,
+    notificationController.sendContributionReminder
+);
+
 // POST /api/notifications/sms - Send a direct SMS (Admin tool)
 router.post(
     '/sms',

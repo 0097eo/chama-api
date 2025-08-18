@@ -19,9 +19,11 @@ interface ContributionData {
     month: number;
     year: number;
     paymentMethod: string;
-    mpesaCode?: string;
+    mpesaCode?: string | null;
     paidAt: Date;
+    status?: 'PENDING' | 'PAID'; // Add optional status field
 }
+
 /**
  * Calculates penalty for a late contribution.
  * @param contributionData - The contribution details.
@@ -29,6 +31,11 @@ interface ContributionData {
  * @returns The calculated penalty amount.
  */
 const calculatePenalty = (contributionData: ContributionData, standardAmount: number): number => {
+    // Only calculate penalty for PAID contributions
+    if (contributionData.status === 'PENDING') {
+        return 0; // No penalty for pending payments
+    }
+    
     const paymentDate = new Date(contributionData.paidAt);
     const deadline = new Date(contributionData.year, contributionData.month - 1, PAYMENT_DEADLINE_DAY);
     if (paymentDate > deadline) {
@@ -57,12 +64,14 @@ export const recordContribution = async (data: ContributionData, actorId: string
     });
     if (existingContribution) throw new Error('A contribution for this member for the specified month and year already exists.');
 
-    const penaltyApplied = calculatePenalty(data, membership.chama.monthlyContribution);
+    // Determine the final status and penalty
+    const finalStatus = data.status || 'PAID'; // Default to PAID for backward compatibility
+    const penaltyApplied = calculatePenalty({ ...data, status: finalStatus }, membership.chama.monthlyContribution);
 
     const newContribution = await prisma.contribution.create({
         data: {
             ...data,
-            status: 'PAID', // Set to PAID upon creation via this service
+            status: finalStatus,
             penaltyApplied,
         },
     });
@@ -90,7 +99,28 @@ export const updateContribution = async (id: string, data: Partial<Contribution>
     });
     if (!oldValue) throw new Error('Contribution not found.');
 
-    const updatedContribution = await prisma.contribution.update({ where: { id }, data });
+    // If updating from PENDING to PAID, recalculate penalty
+    let updateData = { ...data };
+    if (oldValue.status === 'PENDING' && data.status === 'PAID') {
+        const membership = await prisma.membership.findUnique({
+            where: { id: oldValue.membershipId },
+            include: { chama: true }
+        });
+        if (membership) {
+            const contributionData = {
+                ...oldValue,
+                ...data,
+                status: 'PAID' as const,
+                paidAt: data.paidAt || new Date(),
+            };
+            updateData.penaltyApplied = calculatePenalty(contributionData, membership.chama.monthlyContribution);
+        }
+    }
+
+    const updatedContribution = await prisma.contribution.update({ 
+        where: { id }, 
+        data: updateData 
+    });
 
     await createAuditLog({
         action: AuditAction.CONTRIBUTION_UPDATE,
@@ -211,7 +241,7 @@ export const parseAndImportContributions = async (chamaId: string, fileBuffer: B
                     year: parseInt(record.year, 10),
                     paymentMethod: record.paymentMethod,
                     paidAt: new Date(record.paidAt),
-                    status: 'PAID',
+                    status: 'PAID', // Bulk imports are considered completed payments
                 }
             });
             results.push(contribution);
@@ -236,6 +266,7 @@ export const generateContributionsExport = async (chamaId: string): Promise<Buff
         { header: 'Year', key: 'year', width: 10 },
         { header: 'Payment Method', key: 'method', width: 20 },
         { header: 'Date Paid', key: 'paidAt', width: 20 },
+        { header: 'Status', key: 'status', width: 15 },
     ];
     contributions.forEach(c => {
         worksheet.addRow({
@@ -246,6 +277,7 @@ export const generateContributionsExport = async (chamaId: string): Promise<Buff
             year: c.year,
             method: c.paymentMethod,
             paidAt: c.paidAt,
+            status: c.status,
         });
     });
     const buffer = await workbook.csv.writeBuffer();

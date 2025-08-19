@@ -10,13 +10,18 @@ const router = Router();
 
 router.use(protect);
 
+// GET /api/loans/eligibility - Any authenticated user can check their loan eligibility.
+router.get('/eligibility', loanController.checkEligibilityController);
+
+// GET /api/loans/:id - Any authenticated user can view a loan by ID if they are the owner or an admin.
+router.get('/:id', loanController.getLoanById);
+
 // POST /api/loans - Any authenticated user can apply for a loan for their own membership.
 router.post(
     '/',
     loanValidator.applyLoanValidator,
     loanController.applyForLoan
 );
-
 
 // GET /api/loans/chama/:chamaId - Admin/Treasurer/Secretary can view all loans in a chama.
 router.get(
@@ -32,7 +37,6 @@ router.get(
     loanController.getLoanDefaulters
 );
 
-
 // GET /api/loans/member/:membershipId - A member can see their own loans, or an admin can see any.
 router.get('/member/:membershipId', loanController.getMemberLoans);
 
@@ -40,9 +44,10 @@ router.get('/member/:membershipId', loanController.getMemberLoans);
 // GET /api/loans/:id/schedule - The loan owner or an admin can see the repayment schedule.
 router.get('/:id/schedule', loanController.getRepaymentSchedule);
 
-// POST /api/loans/:id/payments - The loan owner or an admin can record a payment.
+// POST /api/loans/:id/payments - Only the Treasurer can record a payment.
 router.post(
     '/:id/payments',
+    checkLoanPermission([MembershipRole.TREASURER]),
     loanValidator.recordPaymentValidator,
     loanController.recordLoanPayment
 );

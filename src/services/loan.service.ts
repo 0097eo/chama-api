@@ -53,6 +53,31 @@ export const generateRepaymentSchedule = (loan: Loan) => {
     return schedule;
 };
 
+export const findLoanById = async (loanId: string) => {
+    return prisma.loan.findUnique({
+        where: { id: loanId },
+        include: {
+            membership: {
+                include: {
+                    user: {
+                        select: {
+                            id: true,
+                            firstName: true,
+                            lastName: true,
+                            email: true,
+                        }
+                    }
+                }
+            },
+            payments: {
+                orderBy: {
+                    paidAt: 'asc'
+                }
+            }
+        }
+    });
+};
+
 
 export const applyForLoan = async (data: Prisma.LoanCreateInput, membershipId: string, actorId: string, logMeta: LogMeta) => {
     if (membershipId !== data.membership.connect?.id) throw new Error("A member can only apply for a loan for themselves.");

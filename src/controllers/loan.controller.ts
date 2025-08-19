@@ -10,6 +10,54 @@ interface AuthenticatedRequest extends Request {
   user?: { id: string };
 }
 
+export const getLoanById = async (req: AuthenticatedRequest, res: Response) => {
+    try {
+        const actorId = req.user?.id!;
+        const { id: loanId } = req.params;
+
+        const loan = await loanService.findLoanById(loanId);
+        if (!loan) {
+            return res.status(404).json({ message: "Loan not found." });
+        }
+
+        const isOwner = loan.membership.userId === actorId;
+        const isPrivileged = await prisma.membership.findFirst({
+            where: {
+                userId: actorId,
+                chamaId: loan.membership.chamaId,
+                role: { in: [MembershipRole.ADMIN, MembershipRole.TREASURER, MembershipRole.SECRETARY] }
+            }
+        });
+
+        if (!isOwner && !isPrivileged) {
+            return res.status(403).json({ message: "Permission Denied: You are not authorized to view this loan." });
+        }
+
+        res.status(200).json({ data: loan });
+    } catch (error) {
+        res.status(500).json({ message: 'An unexpected error occurred.' });
+    }
+};
+
+export const checkEligibilityController = async (req: AuthenticatedRequest, res: Response) => {
+    try {
+        const { membershipId, amount } = req.query;
+        const actorId = req.user?.id!;
+
+        if (!membershipId || !amount) {
+            return res.status(400).json({ message: "membershipId and amount are required query parameters." });
+        }
+        
+        const member = await prisma.membership.findFirst({ where: { id: membershipId as string, userId: actorId }});
+        if(!member) return res.status(403).json({ message: "Permission Denied: You can only check eligibility for your own membership." });
+
+        const eligibility = await loanService.calculateEligibility(membershipId as string, parseFloat(amount as string));
+        res.status(200).json({ data: eligibility });
+    } catch (error) {
+        if(isErrorWithMessage(error)) return res.status(500).json({ message: error.message });
+    }
+};
+
 export const applyForLoan = async (req: AuthenticatedRequest, res: Response) => {
     try {
         const actorId = req.user?.id!;

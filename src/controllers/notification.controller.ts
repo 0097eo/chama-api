@@ -155,3 +155,40 @@ export const sendContributionReminder = async (req: AuthenticatedRequest, res: R
         res.status(500).json({ message: 'An unexpected error occurred while sending the reminder.' });
     }
 };
+
+export const sendLoanReminder = async (req: AuthenticatedRequest, res: Response) => {
+    try {
+        const { chamaId, memberName, phoneNumber, loanId } = req.body;
+        const actorId = req.user?.id!;
+
+        if (!chamaId || !memberName || !phoneNumber || !loanId) {
+            return res.status(400).json({ message: "Chama ID, member name, phone number, and loan ID are required." });
+        }
+
+        const actorMembership = await prisma.membership.findFirst({
+            where: {
+                userId: actorId,
+                chamaId: chamaId,
+                role: { in: [MembershipRole.ADMIN, MembershipRole.TREASURER] }
+            }
+        });
+
+        if (!actorMembership) {
+            return res.status(403).json({ message: "Permission Denied: Only an Admin or Treasurer can send loan reminders." });
+        }
+
+        const loan = await prisma.loan.findUnique({ where: { id: loanId } });
+        if (!loan) {
+            return res.status(404).json({ message: "Loan not found." });
+        }
+        
+        const message = `Hello ${memberName}, this is a friendly reminder that your loan installment of KSH ${loan.monthlyInstallment?.toLocaleString()} is overdue. Please make a payment soon. Thank you.`;
+
+        await notificationService.sendSms([phoneNumber], message);
+        
+        res.status(200).json({ message: `Loan reminder sent successfully to ${memberName}.` });
+    } catch (error) {
+        if (isErrorWithMessage(error)) return res.status(500).json({ message: error.message });
+        res.status(500).json({ message: 'An unexpected error occurred while sending the reminder.' });
+    }
+};

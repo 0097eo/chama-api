@@ -38,6 +38,13 @@ router.post(
     notificationController.sendSmsController
 );
 
+// POST /api/notifications/reminders/loan - Send a loan payment reminder
+router.post(
+    '/reminders/loan',
+    protect,
+    notificationController.sendLoanReminder
+);
+
 // POST /api/notifications/email - Send a direct email (Admin tool)
 router.post(
     '/email',

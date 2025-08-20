@@ -38,6 +38,7 @@ router.post(
     '/b2c',
     protect,
     // Add a middleware to check if the user is a Treasurer
+    checkMembership([MembershipRole.TREASURER]),
     mpesaController.disburseLoanB2CController
 );
 

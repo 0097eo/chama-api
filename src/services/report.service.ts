@@ -5,19 +5,9 @@ import PDFDocument from 'pdfkit';
 const prisma = new PrismaClient();
 
 interface DateRange {
-    startDate?: string;
-    endDate?: string;
+    from?: Date;
+    to?: Date;
 }
-
-const buildDateFilter = ({ startDate, endDate }: DateRange) => {
-    return {
-        // "gte" (>=) should be the very start of the day (00:00:00 UTC)
-        gte: startDate ? new Date(startDate).toISOString() : undefined,
-        // "lte" (<=) should be the very end of the day (23:59:59 UTC)
-        lte: endDate ? new Date(`${endDate}T23:59:59.999Z`).toISOString() : undefined,
-    };
-};
-
 
 export const getFinancialSummary = async (chamaId: string) => {
     const contributions = await prisma.contribution.aggregate({
@@ -51,7 +41,10 @@ export const getFinancialSummary = async (chamaId: string) => {
 export const getContributionsReport = async (chamaId: string, dateRange: DateRange, page: number, limit: number) => {
     const where: Prisma.ContributionWhereInput = {
         membership: { chamaId },
-        paidAt: buildDateFilter(dateRange),
+        paidAt: {
+            gte: dateRange.from,
+            lte: dateRange.to,
+        },
     };
 
     const contributions = await prisma.contribution.findMany({
@@ -86,7 +79,10 @@ export const getLoanPortfolioReport = async (chamaId: string) => {
 };
 
 export const getCashflowReport = async (chamaId: string, dateRange: DateRange) => {
-    const dateFilter = buildDateFilter(dateRange);
+    const dateFilter = {
+        gte: dateRange.from,
+        lte: dateRange.to,
+    };
 
     const inflows = await prisma.contribution.aggregate({
         _sum: { amount: true },
@@ -103,7 +99,10 @@ export const getCashflowReport = async (chamaId: string, dateRange: DateRange) =
     const totalIn = (inflows._sum.amount || 0) + (loanRepayments._sum.amount || 0);
     const totalOut = outflows._sum.amount || 0;
     return {
-        period: dateRange,
+        period: { 
+            startDate: dateRange.from?.toISOString(),
+            endDate: dateRange.to?.toISOString(),
+        },
         totalInflows: totalIn,
         totalOutflows: totalOut,
         netCashflow: totalIn - totalOut,
@@ -140,9 +139,8 @@ export const getAuditTrailReport = async (chamaId: string, page: number, limit: 
         take: limit
     });
     const totalRecords = await prisma.auditLog.count({ where });
-    return { auditLogs, totalRecords, totalPages: Math.ceil(totalRecords / limit) };
+    return { logs: auditLogs, totalRecords, totalPages: Math.ceil(totalRecords / limit) };
 };
-
 
 export const generateReportFile = async (chamaId: string, options: { reportType: string; format: 'pdf' | 'excel'; dateRange: DateRange }): Promise<Buffer> => {
     switch (options.reportType) {
@@ -150,10 +148,10 @@ export const generateReportFile = async (chamaId: string, options: { reportType:
             const { contributions } = await getContributionsReport(chamaId, options.dateRange, 1, 10000);
             if (options.format === 'excel') {
                 const buffer = await generateExcel(contributions);
-                return buffer as Buffer;
+                return buffer as unknown as Buffer;
             }
             const pdfBuffer = await generatePdf(contributions);
-            return pdfBuffer as Buffer;
+            return pdfBuffer;
         default:
             throw new Error('Unsupported report type for export.');
     }
@@ -164,7 +162,7 @@ const generateExcel = async (data: any[]): Promise<Buffer> => {
     const worksheet = workbook.addWorksheet('Report');
     if (data.length === 0) {
         const buffer = await workbook.csv.writeBuffer();
-        return Buffer.from(buffer);
+        return buffer as unknown as Buffer;
     }
     const simpleData = data.map(d => ({
         memberName: `${d.membership.user.firstName} ${d.membership.user.lastName}`,
@@ -178,7 +176,7 @@ const generateExcel = async (data: any[]): Promise<Buffer> => {
     worksheet.columns = Object.keys(simpleData[0]).map(key => ({ header: key, key, width: 25 }));
     worksheet.addRows(simpleData);
     const buffer = await workbook.csv.writeBuffer();
-    return Buffer.from(buffer);
+    return buffer as unknown as Buffer;
 };
 
 const generatePdf = (data: any[]): Promise<Buffer> => {

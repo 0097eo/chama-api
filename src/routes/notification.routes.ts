@@ -1,55 +1,51 @@
 import { Router } from 'express';
 import { protect } from '../middleware/auth.middleware';
-import * as notificationController from '../controllers/notification.controller';
 import { checkMembership } from '../middleware/membership.middleware';
+import * as notificationController from '../controllers/notification.controller';
 import { MembershipRole } from '../generated/prisma/client';
-import { checkRole } from '../middleware/rbac.middleware';
 
 const router = Router();
 router.use(protect);
 
-// GET /api/notifications - Get notifications for the authenticated user
-router.get('/', notificationController.getUserNotifications);
+const allMembers = Object.values(MembershipRole);
+const privilegedRoles = [MembershipRole.ADMIN, MembershipRole.SECRETARY];
+const financialRoles = [MembershipRole.ADMIN, MembershipRole.TREASURER];
 
-// PUT /api/notifications/:id/read - Mark a specific notification as read
+// GET /api/notifications/chama/:chamaId - Get notifications for the authenticated user IN A SPECIFIC CHAMA.
+router.get(
+    '/chama/:chamaId',
+    checkMembership(allMembers),
+    notificationController.getUserNotificationsForChama
+);
+
+// PUT /api/notifications/:id/read - Mark a specific notification as read.
 router.put('/:id/read', notificationController.markAsRead);
 
-// DELETE /api/notifications/:id - Delete a notification
+// DELETE /api/notifications/:id - Delete a notification.
 router.delete('/:id', notificationController.deleteNotification);
 
-// POST /api/notifications/broadcast/:chamaId - Send a message to all chama members
+// POST /api/notifications/broadcast/:chamaId - Send a message to all chama members.
 router.post(
     '/broadcast/:chamaId',
-    checkMembership([MembershipRole.ADMIN, MembershipRole.SECRETARY]),
+    checkMembership(privilegedRoles),
     notificationController.broadcastToChama
 );
 
-// POST /api/notifications/reminders/contribution - Send a contribution reminder
+// POST /api/notifications/reminders/contribution
 router.post(
     '/reminders/contribution',
-    protect,
     notificationController.sendContributionReminder
 );
 
-// POST /api/notifications/sms - Send a direct SMS (Admin tool)
-router.post(
-    '/sms',
-    checkRole([MembershipRole.ADMIN]),
-    notificationController.sendSmsController
-);
-
-// POST /api/notifications/reminders/loan - Send a loan payment reminder
+// POST /api/notifications/reminders/loan
 router.post(
     '/reminders/loan',
-    protect,
     notificationController.sendLoanReminder
 );
 
-// POST /api/notifications/email - Send a direct email (Admin tool)
-router.post(
-    '/email',
-    checkRole([MembershipRole.ADMIN]),
-    notificationController.sendEmailController
-);
+
+// These are general utility routes, need top-level admin protection via rbac.middleware
+router.post('/sms', notificationController.sendSmsController);
+router.post('/email', notificationController.sendEmailController);
 
 export default router;

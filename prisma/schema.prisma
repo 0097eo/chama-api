@@ -28,7 +28,7 @@ model User {
   auditLogs     AuditLog[]     @relation("UserActions")
   uploadedFiles File[]
   memberships   Membership[]
-  notifications Notification[]
+  
 }
 
 model Chama {
@@ -60,6 +60,7 @@ model Membership {
   contributions     Contribution[]
   loans             Loan[]
   meetingAttendance MeetingAttendance[]
+  notifications     Notification[]
   chama             Chama               @relation(fields: [chamaId], references: [id], onDelete: Cascade)
   user              User                @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -170,10 +171,10 @@ model Notification {
   type      NotificationType
   read      Boolean          @default(false)
   createdAt DateTime         @default(now())
-  userId    String
-  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  membership   Membership @relation(fields: [membershipId], references: [id], onDelete: Cascade)
+  membershipId String
 
-  @@index([userId])
+  @@index([membershipId])
 }
 
 model AuditLog {

@@ -18,7 +18,6 @@ const prisma = new PrismaClient();
  * Schedules a new meeting and handles related tasks.
  */
 export const scheduleMeeting = async (data: Prisma.MeetingCreateInput, actorId: string, logMeta: LogMeta) => {
-    // Connect chamaId from data object for creation
     const chamaId = data.chama?.connect?.id;
     if (!chamaId) throw new Error("Chama ID is required to schedule a meeting.");
 
@@ -32,6 +31,14 @@ export const scheduleMeeting = async (data: Prisma.MeetingCreateInput, actorId: 
         }
     });
 
+
+    await createBulkNotifications(
+        meeting.chamaId,
+        `New Meeting Scheduled: ${meeting.title}`,
+        `A new meeting has been scheduled for ${new Date(meeting.scheduledFor).toLocaleString()}.`,
+        NotificationType.MEETING_REMINDER
+    );
+
     await createAuditLog({
         action: AuditAction.MEETING_SCHEDULE,
         actorId,
@@ -40,20 +47,6 @@ export const scheduleMeeting = async (data: Prisma.MeetingCreateInput, actorId: 
         newValue: meeting,
         ...logMeta,
     });
-
-    const members = await prisma.membership.findMany({
-        where: { chamaId: meeting.chamaId, isActive: true },
-        select: { userId: true },
-    });
-    const userIds = members.map(m => m.userId);
-    if (userIds.length > 0) {
-        await createBulkNotifications(
-            userIds,
-            `New Meeting Scheduled: ${meeting.title}`,
-            `A new meeting has been scheduled for ${new Date(meeting.scheduledFor).toLocaleString()}.`,
-            NotificationType.MEETING_REMINDER
-        );
-    }
 
     return meeting;
 };

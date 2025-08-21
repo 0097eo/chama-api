@@ -1,4 +1,3 @@
-// src/services/notification.service.ts
 import nodemailer from 'nodemailer';
 import AfricasTalking from 'africastalking';
 import { PrismaClient } from '../generated/prisma';
@@ -24,7 +23,7 @@ const transporter = nodemailer.createTransport({
 });
 
 interface NotificationData {
-    userId: string;
+    membershipId: string;
     title: string;
     message: string;
     type: NotificationType;
@@ -52,22 +51,26 @@ export const createNotification = (data: NotificationData) => {
  * Creates a notification for multiple users at once (broadcast).
  * @param userIds - An array of user IDs to send the notification to.
  */
-export const createBulkNotifications = async (userIds: string[], title: string, message: string, type: NotificationType) => {
-    const notificationsData = userIds.map(userId => ({
-        userId,
+export const createBulkNotifications = async (chamaId: string, title: string, message: string, type: NotificationType) => {
+    const memberships = await prisma.membership.findMany({
+        where: { chamaId, isActive: true },
+        select: { id: true }, // Select only the membership IDs
+    });
+
+    if (memberships.length === 0) return;
+
+    const membershipIds = memberships.map(m => m.id);
+
+    const notificationsData = membershipIds.map(membershipId => ({
+        membershipId,
         title,
         message,
         type,
     }));
 
-    // Create all notifications in the database
     await prisma.notification.createMany({
         data: notificationsData,
     });
-
-    // In a real app, you would also trigger background jobs to send SMS/email here
-    // For simplicity, we'll log it.
-    console.log(`Bulk notifications created for ${userIds.length} users.`);
 };
 
 /**

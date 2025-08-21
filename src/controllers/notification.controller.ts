@@ -11,29 +11,57 @@ interface AuthenticatedRequest extends Request {
 }
 
 
-export const getUserNotifications = async (req: AuthenticatedRequest, res: Response) => {
-    const actorId = req.user?.id!;
-    const notifications = await prisma.notification.findMany({
-        where: { userId: actorId },
-        orderBy: { createdAt: 'desc' },
-        take: 50, // Limit to the latest 50
-    });
-    res.status(200).json({ data: notifications });
+/**
+ * Gets notifications for the authenticated user within a specific chama.
+ */
+export const getUserNotificationsForChama = async (req: AuthenticatedRequest, res: Response) => {
+    try {
+        const actorId = req.user?.id!;
+        const { chamaId } = req.params;
+
+
+        const membership = await prisma.membership.findFirst({
+            where: { userId: actorId, chamaId }
+        });
+
+        if (!membership) {
+            return res.status(403).json({ message: "You are not a member of this chama." });
+        }
+
+        const notifications = await prisma.notification.findMany({
+            where: { membershipId: membership.id },
+            orderBy: { createdAt: 'desc' },
+            take: 50,
+        });
+        res.status(200).json({ data: notifications });
+    } catch (error) {
+        res.status(500).json({ message: 'An unexpected error occurred.' });
+    }
 };
 
+/**
+ * Marks a notification as read. A user can only mark their own notifications.
+ */
 export const markAsRead = async (req: AuthenticatedRequest, res: Response) => {
     try {
         const actorId = req.user?.id!;
-        const { id } = req.params;
-        
-        // Ensure the user can only mark their own notification as read
-        const notification = await prisma.notification.findFirst({ where: { id, userId: actorId } });
+        const { id: notificationId } = req.params;
+
+        const notification = await prisma.notification.findFirst({
+            where: {
+                id: notificationId,
+                membership: {
+                    userId: actorId,
+                },
+            },
+        });
+
         if (!notification) {
             return res.status(404).json({ message: 'Notification not found or you do not have permission to update it.' });
         }
 
         const updated = await prisma.notification.update({
-            where: { id },
+            where: { id: notificationId },
             data: { read: true },
         });
         res.status(200).json({ data: updated });
@@ -42,38 +70,40 @@ export const markAsRead = async (req: AuthenticatedRequest, res: Response) => {
     }
 };
 
+/**
+ * Deletes a notification. A user can only delete their own notifications.
+ */
 export const deleteNotification = async (req: AuthenticatedRequest, res: Response) => {
     try {
         const actorId = req.user?.id!;
-        const { id } = req.params;
+        const { id: notificationId } = req.params;
 
         const notificationToDelete = await prisma.notification.findFirst({
-            where: { 
-                id: id,
-                userId: actorId 
-            } 
+            where: {
+                id: notificationId,
+                membership: { userId: actorId },
+            },
         });
 
         if (!notificationToDelete) {
             return res.status(404).json({ message: 'Notification not found or you do not have permission to delete it.' });
         }
 
-        await prisma.notification.delete({
-            where: { id: id },
-        });
+        await prisma.notification.delete({ where: { id: notificationId } });
         
         res.status(200).json({ message: 'Notification deleted successfully.' });
-
     } catch (error) {
-        // Handle cases where the record might have been deleted between the check and the delete operation
         if (isPrismaError(error) && error.code === 'P2025') {
             return res.status(404).json({ message: 'Notification not found.' });
         }
-        res.status(500).json({ message: 'An unexpected error occurred while deleting the notification.' });
+        res.status(500).json({ message: 'An unexpected error occurred.' });
     }
 };
 
-export const broadcastToChama = async (req: Request, res: Response) => {
+/**
+ * Sends a notification to all active members of a chama.
+ */
+export const broadcastToChama = async (req: AuthenticatedRequest, res: Response) => {
     try {
         const { chamaId } = req.params;
         const { title, message } = req.body;
@@ -81,14 +111,20 @@ export const broadcastToChama = async (req: Request, res: Response) => {
             return res.status(400).json({ message: 'Title and message are required.' });
         }
 
-        const members = await prisma.membership.findMany({ where: { chamaId, isActive: true } });
-        const userIds = members.map(m => m.userId);
 
-        await notificationService.createBulkNotifications(userIds, title, message, NotificationType.GENERAL);
+        await notificationService.createBulkNotifications(chamaId, title, message, NotificationType.GENERAL);
         
-        const phoneNumbers = (await prisma.user.findMany({ where: { id: { in: userIds } } })).map(u => u.phone);
-        await notificationService.sendSms(phoneNumbers, message);
+        // Send SMS notifications
+        const members = await prisma.membership.findMany({
+            where: { chamaId, isActive: true },
+            include: { user: { select: { phone: true } } }
+        });
+        const phoneNumbers = members.map(m => m.user.phone);
 
+        if (phoneNumbers.length > 0) {
+            await notificationService.sendSms(phoneNumbers, message);
+        }
+        
         res.status(200).json({ message: 'Broadcast sent successfully.' });
     } catch (error) {
         if (isErrorWithMessage(error)) return res.status(500).json({ message: error.message });

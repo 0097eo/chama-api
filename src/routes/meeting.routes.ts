@@ -80,7 +80,7 @@ router.post(
 // GET /api/meetings/:id/qr-code - Generate a QR code for attendance
 router.get(
     '/:id/qr-code',
-    checkMeetingPermission(adminRoles),
+    checkMeetingPermission(allMembers),
     meetingController.generateAttendanceQrCode
 );
 

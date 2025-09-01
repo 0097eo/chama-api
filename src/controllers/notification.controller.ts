@@ -40,7 +40,7 @@ export const getUserNotificationsForChama = async (req: AuthenticatedRequest, re
 };
 
 /**
- * Marks a notification as read. A user can only mark their own notifications.
+ * Marks a notification as read and emits WebSocket event
  */
 export const markAsRead = async (req: AuthenticatedRequest, res: Response) => {
     try {
@@ -64,14 +64,19 @@ export const markAsRead = async (req: AuthenticatedRequest, res: Response) => {
             where: { id: notificationId },
             data: { read: true },
         });
+
+        // Emit WebSocket event
+        await notificationService.markNotificationAsRead(notificationId, actorId);
+
         res.status(200).json({ data: updated });
     } catch (error) {
         res.status(500).json({ message: 'An unexpected error occurred.' });
     }
 };
 
+
 /**
- * Deletes a notification. A user can only delete their own notifications.
+ * Deletes a notification and emits WebSocket event
  */
 export const deleteNotification = async (req: AuthenticatedRequest, res: Response) => {
     try {
@@ -90,6 +95,9 @@ export const deleteNotification = async (req: AuthenticatedRequest, res: Respons
         }
 
         await prisma.notification.delete({ where: { id: notificationId } });
+        
+        // Emit WebSocket event
+        await notificationService.notifyNotificationDeleted(notificationId, actorId);
         
         res.status(200).json({ message: 'Notification deleted successfully.' });
     } catch (error) {

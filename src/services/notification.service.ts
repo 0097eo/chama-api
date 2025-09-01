@@ -2,6 +2,7 @@ import nodemailer from 'nodemailer';
 import AfricasTalking from 'africastalking';
 import { PrismaClient } from '../generated/prisma';
 import { NotificationType, Prisma, User } from '../generated/prisma';
+import { WebSocketServer } from '../websocket.server';
 
 const prisma = new PrismaClient();
 
@@ -41,36 +42,74 @@ export const sendInvitationEmail = async (email: string, inviterName: string) =>
 };
 
 /**
- * Creates a notification record in the database.
+ * Creates a notification record and sends real-time notification
  */
-export const createNotification = (data: NotificationData) => {
-    return prisma.notification.create({ data });
+export const createNotification = async (data: NotificationData) => {
+    const notification = await prisma.notification.create({ 
+        data,
+        include: {
+            membership: {
+                include: {
+                    user: { select: { id: true } },
+                    chama: { select: { id: true, name: true } }
+                }
+            }
+        }
+    });
+
+    // Send real-time notification via WebSocket to a specific user
+    const wsServer = WebSocketServer.getInstance();
+    if (wsServer) {
+        wsServer.sendToUser(notification.membership.user.id, 'new_notification', {
+            id: notification.id,
+            title: notification.title,
+            message: notification.message,
+            type: notification.type,
+            chamaName: notification.membership.chama.name,
+            createdAt: notification.createdAt,
+            read: false
+        });
+    }
+
+    return notification;
 };
 
 /**
- * Creates a notification for multiple users at once (broadcast).
- * @param userIds - An array of user IDs to send the notification to.
+ * Creates bulk notifications (database records) and sends a single real-time broadcast notification
  */
 export const createBulkNotifications = async (chamaId: string, title: string, message: string, type: NotificationType) => {
     const memberships = await prisma.membership.findMany({
         where: { chamaId, isActive: true },
-        select: { id: true }, // Select only the membership IDs
+        select: { 
+            id: true, 
+            user: { select: { id: true } },
+            chama: { select: { name: true } }
+        },
     });
 
     if (memberships.length === 0) return;
 
-    const membershipIds = memberships.map(m => m.id);
-
-    const notificationsData = membershipIds.map(membershipId => ({
-        membershipId,
+    const notificationsData = memberships.map(membership => ({
+        membershipId: membership.id,
         title,
         message,
         type,
     }));
 
-    await prisma.notification.createMany({
-        data: notificationsData,
-    });
+    await prisma.$transaction(
+        notificationsData.map(data => prisma.notification.create({ data }))
+    );
+
+    const wsServer = WebSocketServer.getInstance();
+    if (wsServer) {
+        wsServer.sendToChama(chamaId, 'new_broadcast_notification', {
+            title,
+            message,
+            type,
+            chamaName: memberships[0].chama.name, // Assuming all members belong to the same chama
+            createdAt: new Date().toISOString()
+        });
+    }
 };
 
 /**
@@ -107,5 +146,31 @@ export const sendEmail = async (to: string, subject: string, html: string) => {
     } catch (error) {
         console.error('Email sending error:', error);
         throw new Error('Failed to send email.');
+    }
+};
+
+/**
+ * Send real-time notification when a notification is marked as read
+ */
+export const markNotificationAsRead = async (notificationId: string, userId: string) => {
+    const wsServer = WebSocketServer.getInstance();
+    if (wsServer) {
+        wsServer.sendToUser(userId, 'notification_marked_read', {
+            notificationId,
+            timestamp: new Date().toISOString()
+        });
+    }
+};
+
+/**
+ * Send real-time notification when a notification is deleted
+ */
+export const notifyNotificationDeleted = async (notificationId: string, userId: string) => {
+    const wsServer = WebSocketServer.getInstance();
+    if (wsServer) {
+        wsServer.sendToUser(userId, 'notification_deleted', {
+            notificationId,
+            timestamp: new Date().toISOString()
+        });
     }
 };

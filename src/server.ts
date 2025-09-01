@@ -14,17 +14,25 @@ import meetingRoutes from './routes/meeting.routes'
 import notificationRoutes from './routes/notification.routes';
 import fileRoutes from './routes/files.routes';
 import auditRoutes from './routes/audit.routes';
-// Todo -  import { errorHandler } from './middleware/error.middleware';
+import { WebSocketServer } from './websocket.server';
+import { createServer } from 'http';
 
 dotenv.config();
 
 const app = express();
+const httpServer = createServer(app);
+
+// Initialize WebSocket server
+const wsServer = new WebSocketServer(httpServer);
+
+
 const PORT = process.env.PORT || 3000;
 
 // --- Global Middleware ---
 // Enable CORS with specified origins
 app.use(cors({
-  origin: process.env.CORS_ORIGINS?.split(',') || 'http://localhost:3000'
+  origin: process.env.CORS_ORIGINS?.split(',') || 'http://localhost:3000',
+  credentials: true,
 }));
 
 // Secure apps by setting various HTTP headers
@@ -54,10 +62,9 @@ app.get('/', (req, res) => {
   res.send('Chama-API is up and running!');
 });
 
-// --- Error Handling Middleware ---
-// This should be the last middleware
-// Todo -  app.use(errorHandler); //  will add this later when I create the middleware
 
-app.listen(PORT, () => {
-  console.log(`Server is running on port ${PORT}`);
+
+httpServer.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
+  console.log('WebSocket server initialized');
 });

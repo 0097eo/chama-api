@@ -172,11 +172,25 @@ export const recordLoanPayment = async (loanId: string, paymentData: Prisma.Loan
     const loan = await prisma.loan.findUnique({ where: { id: loanId }, include: { payments: true, membership: true } });
     if (!loan || loan.status !== LoanStatus.ACTIVE) throw new Error("Cannot record payment for this loan.");
 
-    const totalPaid = loan.payments.reduce((sum, p) => sum + p.amount, 0) + paymentData.amount;
+    const normalizedMpesaCode = paymentData.mpesaCode?.trim() || undefined;
+
+    if (normalizedMpesaCode) {
+        const duplicatePayment = await prisma.loanPayment.findUnique({ where: { mpesaCode: normalizedMpesaCode } });
+        if (duplicatePayment) {
+            throw new Error('Payment with the provided M-Pesa code already exists.');
+        }
+    }
+
+    const cleanedPaymentData: Prisma.LoanPaymentCreateWithoutLoanInput = {
+        ...paymentData,
+        mpesaCode: normalizedMpesaCode,
+    };
+
+    const totalPaid = loan.payments.reduce((sum, p) => sum + p.amount, 0) + cleanedPaymentData.amount;
     const isFullyPaid = totalPaid >= (loan.repaymentAmount || 0);
 
     const newPayment = await prisma.loanPayment.create({
-        data: { loanId: loanId, ...paymentData },
+        data: { loanId: loanId, ...cleanedPaymentData },
     });
 
     if (isFullyPaid) {

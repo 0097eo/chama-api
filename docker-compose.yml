@@ -1,51 +1,26 @@
+version: '3.8'
 
 services:
-  # Defines the PostgreSQL database service
-  postgres-db:
-    image: postgres:14-alpine
-    container_name: chama-postgres-db
-    restart: always
-    environment:
-      POSTGRES_USER: okelo
-      POSTGRES_PASSWORD: kothbiro
-      POSTGRES_DB: chama_db
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
     ports:
-      # Maps host port 5433 to container port 5432 (to avoid local conflicts)
-      - "5434:5432"
+      - "3000:3000"
+    env_file:
+      - .env
+      # Add other environment variables as needed for your application
+    depends_on:
+      - db
+
+  db:
+    image: postgres:13
+    environment:
+      POSTGRES_DB: mydatabase
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
     volumes:
       - db-data:/var/lib/postgresql/data
-    networks:
-      - chama-net
 
-  # Defines the pgAdmin service for database management
-  pgadmin:
-    image: dpage/pgadmin4
-    container_name: chama-pgadmin
-    restart: always
-    environment:
-      # Set up your default login credentials for the pgAdmin web interface
-      PGADMIN_DEFAULT_EMAIL: "admin@example.com"
-      PGADMIN_DEFAULT_PASSWORD: "adminpassword"
-    ports:
-      # Maps host port 5050 to the container's port 80
-      - "5050:80"
-    volumes:
-      # Persists pgAdmin's configuration and server definitions
-      - pgadmin-data:/var/lib/pgadmin
-    networks:
-      - chama-net
-    # This ensures that pgAdmin waits for the database to be ready before starting
-    depends_on:
-      - postgres-db
-
-# Defines the network that the services will use to communicate
-networks:
-  chama-net:
-    driver: bridge
-
-# Defines the volumes for persistent data storage
 volumes:
   db-data:
-    driver: local
-  pgadmin-data:
-    driver: local

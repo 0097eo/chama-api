@@ -25,7 +25,6 @@ const httpServer = createServer(app);
 // Initialize WebSocket server
 const wsServer = new WebSocketServer(httpServer);
 
-
 const PORT = process.env.PORT || 3000;
 
 // --- Global Middleware ---
@@ -61,8 +60,6 @@ app.use('/api/audit', auditRoutes);
 app.get('/', (req, res) => {
   res.send('Chama-API is up and running!');
 });
-
-
 
 httpServer.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);

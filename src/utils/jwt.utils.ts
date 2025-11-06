@@ -1,4 +1,4 @@
-import jwt, { Secret, JwtPayload } from 'jsonwebtoken';
+import jwt, { Secret, JwtPayload, SignOptions } from 'jsonwebtoken';
 import dotenv from 'dotenv';
 
 dotenv.config();
@@ -12,13 +12,13 @@ if (!JWT_SECRET) {
 export function generateToken(payload: object): string {
   return jwt.sign(payload, JWT_SECRET, {
     expiresIn: process.env.JWT_EXPIRES_IN || '7d',
-  });
+  } as SignOptions);
 }
 
 export function generateRefreshToken(payload: object): string {
   return jwt.sign(payload, JWT_SECRET, {
-    expiresIn: '30d', // Refresh tokens should have a longer life
-  });
+    expiresIn: '30d',
+  } as SignOptions);
 }
 
 export function verifyToken(token: string): JwtPayload | string | null {

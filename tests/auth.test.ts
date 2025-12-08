@@ -1,11 +1,11 @@
 import request from 'supertest';
 import { DeepMockProxy, mockDeep } from 'jest-mock-extended';
-import { PrismaClient, User, UserRole } from '../src/generated/prisma';
+import { PrismaClient, User, UserRole } from '@prisma/client';
 import bcrypt from 'bcrypt';
 
 const prismaMock = mockDeep<PrismaClient>();
 
-jest.mock('../src/generated/prisma', () => {
+jest.mock('@prisma/client', () => {
     return {
         __esModule: true,
         PrismaClient: jest.fn(() => prismaMock),

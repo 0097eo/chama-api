@@ -1,6 +1,6 @@
 import { Request, Response } from 'express';
 import * as chamaService from '../services/chama.service';
-import { MembershipRole } from '../generated/prisma/client';
+import { MembershipRole } from '@prisma/client';
 import { isErrorWithMessage, isPrismaError } from '../utils/error.utils';
 
 // Extend request type to include user and file from middleware

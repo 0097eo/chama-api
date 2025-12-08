@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { protect } from '../middleware/auth.middleware';
 import * as auditController from '../controllers/audit.controller';
-import { UserRole } from '../generated/prisma/client';
+import { UserRole } from '@prisma/client';
 import { checkMembership } from '../middleware/membership.middleware';
 import { checkRole } from '../middleware/rbac.middleware';
 

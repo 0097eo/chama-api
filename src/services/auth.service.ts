@@ -1,4 +1,4 @@
-import { PrismaClient, User } from '../generated/prisma';
+import { PrismaClient, User } from '@prisma/client';
 import bcrypt from 'bcrypt';
 import { generateRefreshToken, generateToken } from '../utils/jwt.utils';
 import { parsePhoneNumberFromString } from 'libphonenumber-js';
@@ -7,6 +7,7 @@ import crypto from 'crypto';
 import { AppError } from '../utils/customErrors';
 
 const prisma = new PrismaClient();
+
 
 const generateSecureToken = () => crypto.randomBytes(32).toString('hex');
 

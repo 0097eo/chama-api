@@ -1,6 +1,6 @@
 import axios from 'axios';
 import { format } from 'date-fns';
-import { PrismaClient } from '../generated/prisma';
+import { PrismaClient } from '@prisma/client';
 import { isErrorWithMessage } from '../utils/error.utils';
 
 const prisma = new PrismaClient();

@@ -1,6 +1,6 @@
 import { Request, Response } from 'express';
 import * as auditService from '../services/audit.service';
-import { Prisma, AuditAction } from '../generated/prisma/client';
+import { Prisma, AuditAction } from '@prisma/client';
 
 const toAuditActionArray = (actions: string[]): AuditAction[] => {
     const validActions: AuditAction[] = [];

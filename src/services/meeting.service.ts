@@ -1,5 +1,5 @@
-import { PrismaClient } from '../generated/prisma/client';
-import { Meeting, Prisma, NotificationType, AuditAction, MeetingStatus } from '../generated/prisma/client';
+import { PrismaClient } from '@prisma/client';
+import { Meeting, Prisma, NotificationType, AuditAction, MeetingStatus } from '@prisma/client';
 import qrcode from 'qrcode';
 import * as ics from 'ics';
 import { createBulkNotifications } from './notification.service';

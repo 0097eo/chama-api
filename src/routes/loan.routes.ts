@@ -4,7 +4,7 @@ import { checkMembership } from '../middleware/membership.middleware';
 import { checkLoanPermission } from '../middleware/permission.middleware';
 import * as loanController from '../controllers/loan.controller';
 import * as loanValidator from '../validators/loan.validators';
-import { MembershipRole } from '../generated/prisma/client';
+import { MembershipRole } from '@prisma/client';
 
 const router = Router();
 

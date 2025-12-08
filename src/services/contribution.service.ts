@@ -1,4 +1,4 @@
-import { Contribution, Prisma, PrismaClient, AuditAction } from '../generated/prisma/client';
+import { Contribution, Prisma, PrismaClient, AuditAction } from '@prisma/client';
 import Papa from 'papaparse';
 import ExcelJS from 'exceljs';
 import { createAuditLog } from './audit.service';

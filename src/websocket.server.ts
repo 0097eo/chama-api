@@ -1,7 +1,7 @@
 import { Server } from 'socket.io';
 import { Server as HttpServer } from 'http';
 import jwt from 'jsonwebtoken';
-import { PrismaClient } from './generated/prisma';
+import { PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
@@ -69,8 +69,8 @@ export class WebSocketServer {
 
         (socket as any).auth = {
           userId,
-          membershipIds: memberships.map(m => m.id),
-          chamaIds: memberships.map(m => m.chamaId)
+          membershipIds: memberships.map((m: { id: string; chamaId: string }) => m.id),
+          chamaIds: memberships.map((m: { id: string; chamaId: string }) => m.chamaId)
         };
 
         next();

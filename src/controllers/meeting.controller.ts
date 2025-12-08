@@ -1,8 +1,8 @@
 import { Request, Response } from 'express';
-import { PrismaClient } from '../generated/prisma/client';
+import { PrismaClient } from '@prisma/client';
 import * as meetingService from '../services/meeting.service';
 import { isErrorWithMessage } from '../utils/error.utils';
-import { MembershipRole, MeetingStatus } from '../generated/prisma/client';
+import { MembershipRole, MeetingStatus } from '@prisma/client';
 
 const prisma = new PrismaClient();
 interface AuthenticatedRequest extends Request {

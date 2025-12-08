@@ -1,6 +1,6 @@
 import { body } from "express-validator";
 import { handleValidationErrors } from "../middleware/validation.middleware";
-import { LoanStatus } from "../generated/prisma";
+import { LoanStatus } from "@prisma/client";
 
 export const applyLoanValidator = [
   body('membershipId').isString().notEmpty().withMessage('Membership ID is required.'),

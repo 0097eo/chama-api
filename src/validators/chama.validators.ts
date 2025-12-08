@@ -1,6 +1,6 @@
 import { body } from 'express-validator';
 import { handleValidationErrors } from '../middleware/validation.middleware';
-import { MembershipRole } from '../generated/prisma/client';
+import { MembershipRole } from '@prisma/client';
 
 export const createChamaValidator = [
   body('name')

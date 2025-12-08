@@ -1,4 +1,4 @@
-import { PrismaClient } from '../../generated/prisma';
+import { PrismaClient } from '@prisma/client';
 
 // This file uses "declaration merging" to add custom properties to the Express namespace.
 declare global {

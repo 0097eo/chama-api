@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { protect } from '../middleware/auth.middleware';
 import * as mpesaController from '../controllers/mpesa.controller';
 import { checkMembership } from '../middleware/membership.middleware';
-import { MembershipRole } from '../generated/prisma';
+import { MembershipRole } from '@prisma/client';
 
 const router = Router();
 

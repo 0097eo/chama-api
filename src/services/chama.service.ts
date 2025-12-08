@@ -1,4 +1,4 @@
-import { Chama, Membership, MembershipRole, AuditAction, PrismaClient } from '../generated/prisma/client';
+import { Chama, Membership, MembershipRole, AuditAction, PrismaClient } from '@prisma/client';
 import { add } from 'date-fns';
 import { createAuditLog } from './audit.service';
 

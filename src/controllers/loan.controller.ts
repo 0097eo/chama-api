@@ -1,4 +1,4 @@
-import { LoanStatus, MembershipRole, PrismaClient } from "../generated/prisma";
+import { LoanStatus, MembershipRole, PrismaClient } from '@prisma/client';
 import { Request, Response } from "express";
 import * as loanService from "../services/loan.service";
 import { isErrorWithMessage } from "../utils/error.utils";

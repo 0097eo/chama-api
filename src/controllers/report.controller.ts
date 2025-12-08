@@ -1,7 +1,7 @@
 import { Request, Response } from 'express';
 import * as reportService from '../services/report.service';
 import { isErrorWithMessage } from '../utils/error.utils';
-import { Prisma, AuditAction } from '../generated/prisma/client';
+import { Prisma, AuditAction } from '@prisma/client';
 import * as auditService from '../services/audit.service';
 
 const getDateFromParam = (param: any): Date | undefined => {

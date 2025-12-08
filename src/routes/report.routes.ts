@@ -3,7 +3,7 @@ import { protect } from '../middleware/auth.middleware';
 import { checkMembership } from '../middleware/membership.middleware';
 import * as reportController from '../controllers/report.controller';
 import * as reportValidator from '../validators/report.validators';
-import { MembershipRole } from '../generated/prisma/client';
+import { MembershipRole } from '@prisma/client';
 
 const router = Router();
 router.use(protect);

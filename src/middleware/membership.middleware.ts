@@ -1,8 +1,10 @@
 import { Request, Response, NextFunction } from 'express';
-import { MembershipRole } from '../generated/prisma/client';
-import { PrismaClient } from '../generated/prisma';
+import { PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
+
+// Define MembershipRole type locally to match your Prisma enum
+type MembershipRole = 'ADMIN' | 'TREASURER' | 'SECRETARY' | 'MEMBER';
 
 // Extend the Express Request type to include the authenticated user from 'protect' middleware
 interface AuthenticatedRequest extends Request {
@@ -35,7 +37,7 @@ export const checkMembership = (allowedRoles: MembershipRole[]) => {
         return res.status(403).json({ message: 'Access Denied: You are not an active member of this chama.' });
       }
 
-      if (!allowedRoles.includes(membership.role)) {
+      if (!allowedRoles.includes(membership.role as MembershipRole)) {
         return res.status(403).json({ message: `Access Denied: This action requires one of the following roles: ${allowedRoles.join(', ')}.` });
       }
 

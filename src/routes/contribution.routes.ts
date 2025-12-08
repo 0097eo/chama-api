@@ -4,7 +4,6 @@ import { checkMembership } from '../middleware/membership.middleware';
 import * as contributionController from '../controllers/contribution.controller';
 import * as contributionValidator from '../validators/contributions.validators';
 import { uploadCsv } from '../middleware/upload.midlleware'; // For bulk import
-import { MembershipRole } from '../generated/prisma';
 
 const router = Router();
 
@@ -21,7 +20,7 @@ router.post(
 // POST /api/contributions/bulk-import/:chamaId -Only Admin/Treasurer can bulk import from CSV
 router.post(
   '/bulk-import/:chamaId',
-  checkMembership([MembershipRole.ADMIN, MembershipRole.TREASURER]),
+  checkMembership(['ADMIN', 'TREASURER']),
   uploadCsv.single('contributionsFile'),
   contributionController.bulkImportContributions
 );
@@ -43,21 +42,21 @@ router.get(
 // GET /api/contributions/summary/:chamaId - Admin/Treasurer/Secretary can view summary
 router.get(
   '/summary/:chamaId',
-  checkMembership([MembershipRole.ADMIN, MembershipRole.TREASURER, MembershipRole.SECRETARY]),
+  checkMembership(['ADMIN', 'TREASURER', 'SECRETARY']),
   contributionController.getContributionSummary
 );
 
 // GET /api/contributions/defaulters/:chamaId - Admin/Treasurer/Secretary can view defaulters
 router.get(
   '/defaulters/:chamaId',
-  checkMembership([MembershipRole.ADMIN, MembershipRole.TREASURER, MembershipRole.SECRETARY]),
+  checkMembership(['ADMIN', 'TREASURER', 'SECRETARY']),
   contributionController.getDefaulters
 );
 
 // GET /api/contributions/export/:chamaId - Admin/Treasurer/Secretary can export data
 router.get(
   '/export/:chamaId',
-  checkMembership([MembershipRole.ADMIN, MembershipRole.TREASURER, MembershipRole.SECRETARY]),
+  checkMembership(['ADMIN', 'TREASURER', 'SECRETARY']),
   contributionController.exportContributions
 );
 

@@ -1,8 +1,8 @@
 import { Request, Response } from 'express';
-import { PrismaClient } from '../generated/prisma/client';
+import { PrismaClient } from '@prisma/client';
 import * as notificationService from '../services/notification.service';
 import { isErrorWithMessage, isPrismaError } from '../utils/error.utils';
-import { NotificationType, MembershipRole } from '../generated/prisma/client';
+import { NotificationType, MembershipRole } from '@prisma/client';
 
 const prisma = new PrismaClient();
 

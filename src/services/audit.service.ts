@@ -1,4 +1,4 @@
-import { PrismaClient, AuditAction, Prisma } from '../generated/prisma/client';
+import { PrismaClient, AuditAction, Prisma } from '@prisma/client';
 import ExcelJS from 'exceljs';
 
 const prisma = new PrismaClient();

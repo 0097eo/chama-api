@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import * as userService from '../services/user.service';
-import { PrismaClient } from '../generated/prisma'; // Import PrismaClient
+import { PrismaClient } from '@prisma/client'; // Import PrismaClient
 
 const prisma = new PrismaClient(); // Create an instance to use
 

@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { protect } from '../middleware/auth.middleware';
 import { checkMembership } from '../middleware/membership.middleware';
 import * as notificationController from '../controllers/notification.controller';
-import { MembershipRole } from '../generated/prisma/client';
+import { MembershipRole } from '@prisma/client';
 
 const router = Router();
 router.use(protect);

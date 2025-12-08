@@ -3,7 +3,7 @@ import { protect } from '../middleware/auth.middleware';
 import { checkMembership } from '../middleware/membership.middleware';
 import * as fileController from '../controllers/file.controller';
 import { uploadGenericFile } from '../middleware/upload.midlleware';
-import { MembershipRole } from '../generated/prisma/client';
+import { MembershipRole } from '@prisma/client';
 
 const router = Router();
 router.use(protect);

@@ -1,8 +1,8 @@
 import { Request, Response } from 'express';
-import { PrismaClient } from '../generated/prisma/client';
+import { PrismaClient } from '@prisma/client';
 import * as fileService from '../services/file.service';
 import { isErrorWithMessage } from '../utils/error.utils';
-import { MembershipRole } from '../generated/prisma/client';
+import { MembershipRole } from '@prisma/client';
 import multer from 'multer';
 
 const prisma = new PrismaClient();

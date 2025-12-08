@@ -1,6 +1,6 @@
 import { body } from "express-validator";
 import { handleValidationErrors } from "../middleware/validation.middleware";
-import { ContributionStatus } from "../generated/prisma";
+import { ContributionStatus } from "@prisma/client";
 
 export const recordContributionValidator = [
 body('membershipId').isString().notEmpty().withMessage('Membership ID is required.'),

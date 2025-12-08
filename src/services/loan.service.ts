@@ -1,4 +1,4 @@
-import { PrismaClient, Loan, LoanStatus, Prisma, TransactionType, AuditAction } from "../generated/prisma";
+import { PrismaClient, Loan, LoanStatus, Prisma, TransactionType, AuditAction } from '@prisma/client';
 import { addMonths, format } from 'date-fns';
 import { createAuditLog } from "./audit.service";
 

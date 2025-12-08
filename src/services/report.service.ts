@@ -1,4 +1,4 @@
-import { Prisma, PrismaClient } from '../generated/prisma/client';
+import { Prisma, PrismaClient } from '@prisma/client';
 import ExcelJS from 'exceljs';
 import PDFDocument from 'pdfkit';
 

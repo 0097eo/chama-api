@@ -1,10 +1,11 @@
 import nodemailer from 'nodemailer';
 import AfricasTalking from 'africastalking';
-import { PrismaClient } from '../generated/prisma';
-import { NotificationType, Prisma, User } from '../generated/prisma';
+import { PrismaClient } from '@prisma/client';
 import { WebSocketServer } from '../websocket.server';
+import { NotificationType } from '@prisma/client';
 
 const prisma = new PrismaClient();
+
 
 const atCredentials = {
     apiKey: process.env.AT_API_KEY!,
@@ -77,7 +78,12 @@ export const createNotification = async (data: NotificationData) => {
 /**
  * Creates bulk notifications (database records) and sends a single real-time broadcast notification
  */
-export const createBulkNotifications = async (chamaId: string, title: string, message: string, type: NotificationType) => {
+export const createBulkNotifications = async (
+    chamaId: string, 
+    title: string, 
+    message: string, 
+    type: NotificationType
+) => {
     const memberships = await prisma.membership.findMany({
         where: { chamaId, isActive: true },
         select: { 
@@ -89,15 +95,22 @@ export const createBulkNotifications = async (chamaId: string, title: string, me
 
     if (memberships.length === 0) return;
 
-    const notificationsData = memberships.map(membership => ({
+    // Explicitly type the notifications data array
+    const notificationsData: Array<{
+        membershipId: string;
+        title: string;
+        message: string;
+        type: NotificationType;
+    }> = memberships.map((membership) => ({
         membershipId: membership.id,
         title,
         message,
         type,
     }));
 
+    // Fix: Remove the type annotation from the map parameter
     await prisma.$transaction(
-        notificationsData.map(data => prisma.notification.create({ data }))
+        notificationsData.map((data) => prisma.notification.create({ data }))
     );
 
     const wsServer = WebSocketServer.getInstance();
@@ -106,7 +119,7 @@ export const createBulkNotifications = async (chamaId: string, title: string, me
             title,
             message,
             type,
-            chamaName: memberships[0].chama.name, // Assuming all members belong to the same chama
+            chamaName: memberships[0].chama.name,
             createdAt: new Date().toISOString()
         });
     }

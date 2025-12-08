@@ -4,7 +4,7 @@ import { checkMembership } from '../middleware/membership.middleware';
 import { checkMeetingPermission } from '../middleware/permission.middleware';
 import * as meetingController from '../controllers/meeting.controller';
 import * as meetingValidator from '../validators/meeting.validators';
-import { MembershipRole } from '../generated/prisma/client';
+import { MembershipRole } from '@prisma/client';
 
 const router = Router();
 router.use(protect);

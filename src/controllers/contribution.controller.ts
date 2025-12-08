@@ -1,8 +1,8 @@
 import { Request, Response } from 'express';
 import * as contributionService from '../services/contribution.service';
 import { isErrorWithMessage, isPrismaError } from '../utils/error.utils';
-import { PrismaClient } from '../generated/prisma';
-import { MembershipRole } from '../generated/prisma/client';
+import { PrismaClient } from '@prisma/client';
+import { MembershipRole } from '@prisma/client';
 
 const prisma = new PrismaClient();
 

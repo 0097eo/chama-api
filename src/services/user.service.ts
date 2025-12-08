@@ -1,4 +1,4 @@
-import { Prisma, PrismaClient, User } from '../generated/prisma/client';
+import { Prisma, PrismaClient, User } from '@prisma/client';
 import { createAuditLog } from './audit.service';
 import { sendInvitationEmail } from './notification.service';
 import { parsePhoneNumberFromString } from 'libphonenumber-js';

@@ -1,9 +1,9 @@
 import { Request, Response } from 'express';
 import * as mpesaService from '../services/mpesa.service';
 import { isErrorWithMessage } from '../utils/error.utils';
-import { PrismaClient } from '../generated/prisma';
-import { MembershipRole } from '../generated/prisma';
-import { LoanStatus, TransactionType } from '../generated/prisma';
+import { PrismaClient } from '@prisma/client';
+import { MembershipRole } from '@prisma/client';
+import { LoanStatus, TransactionType } from '@prisma/client';
 import { addMonths } from 'date-fns';
 
 const prisma = new PrismaClient();

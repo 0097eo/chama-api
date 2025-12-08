@@ -19,10 +19,6 @@ lerna-debug.log*
 .env.production
 .env.development
 
-# Prisma
-# Ignore the generated Prisma Client folder
-# This is typically regenerated on `npm install` or `prisma generate`
-/node_modules/.prisma/client
 
 # IDE and editor directories
 .idea/
@@ -44,4 +40,4 @@ coverage/
 # Optional tooling files
 .npm
 .eslintcache
-/src/generated/prisma
+

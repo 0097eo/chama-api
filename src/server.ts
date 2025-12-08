@@ -16,31 +16,25 @@ import fileRoutes from './routes/files.routes';
 import auditRoutes from './routes/audit.routes';
 import { WebSocketServer } from './websocket.server';
 import { createServer } from 'http';
+import { errorHandler } from './middleware/error.middleware';
 
 dotenv.config();
 
-const app = express();
-const httpServer = createServer(app);
+export const app = express();
+export const server = createServer(app);
 
-// Initialize WebSocket server
-const wsServer = new WebSocketServer(httpServer);
+const wsServer = new WebSocketServer(server);
 
 const PORT = process.env.PORT || 3000;
 
 // --- Global Middleware ---
-// Enable CORS with specified origins
 app.use(cors({
   origin: process.env.CORS_ORIGINS?.split(',') || 'http://localhost:3000',
   credentials: true,
 }));
 
-// Secure apps by setting various HTTP headers
 app.use(helmet());
-
-// Logger for HTTP requests
 app.use(morgan('dev'));
-
-// Parse JSON bodies
 app.use(express.json());
 
 // --- API Routes ---
@@ -61,7 +55,10 @@ app.get('/', (req, res) => {
   res.send('Chama-API is up and running!');
 });
 
-httpServer.listen(PORT, () => {
+// --- Error Handler (MUST be last) ---
+app.use(errorHandler);
+
+server.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
   console.log('WebSocket server initialized');
 });

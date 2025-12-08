@@ -1,16 +1,15 @@
 import { PrismaClient, User } from '../generated/prisma';
 import bcrypt from 'bcrypt';
-import { generateRefreshToken, generateToken } from '../utils/jwt.utils'; // Assuming you have these
+import { generateRefreshToken, generateToken } from '../utils/jwt.utils';
 import { parsePhoneNumberFromString } from 'libphonenumber-js';
 import { sendEmail } from './notification.service';
-import crypto from 'crypto'; // Native Node.js module for generating secure random tokens
+import crypto from 'crypto';
+import { AppError } from '../utils/customErrors';
 
 const prisma = new PrismaClient();
 
-// A helper to generate secure random tokens for verification and reset
 const generateSecureToken = () => crypto.randomBytes(32).toString('hex');
 
-// Hashes a password using bcrypt
 const hashPassword = async (password: string): Promise<string> => {
   const salt = await bcrypt.genSalt(10);
   return bcrypt.hash(password, salt);
@@ -22,25 +21,20 @@ const hashPassword = async (password: string): Promise<string> => {
 export const registerUser = async (userData: any): Promise<Partial<User>> => {
   const { email, phone, idNumber, password } = userData;
 
-  // Check if user already exists
   const existingUser = await prisma.user.findFirst({
     where: { OR: [{ email }, { phone }, { idNumber }] },
   });
   if (existingUser) {
-    throw new Error('User with this email, phone, or ID number already exists');
+    throw new AppError('User with this email, phone, or ID number already exists', 400);
   }
 
-  // Normalize phone number to E.164 format
   const phoneNumber = parsePhoneNumberFromString(phone, 'KE');
   if (!phoneNumber || !phoneNumber.isValid()) {
-      throw new Error('Invalid Kenyan phone number format');
+      throw new AppError('Invalid Kenyan phone number format', 400);
   }
   const normalizedPhone = phoneNumber.format('E.164');
 
-  // Hash password
   const hashedPassword = await hashPassword(password);
-
-  // Generate email verification token
   const emailVerificationToken = generateSecureToken();
 
   const newUser = await prisma.user.create({
@@ -48,13 +42,12 @@ export const registerUser = async (userData: any): Promise<Partial<User>> => {
       ...userData,
       phone: normalizedPhone,
       password: hashedPassword,
-      emailVerificationToken, // Save the token to the user record
-      isEmailVerified: false, // Start as unverified
+      emailVerificationToken,
+      isEmailVerified: false,
     },
     select: { id: true, email: true, firstName: true, lastName: true, phone: true, role: true }
   });
 
-  // Send verification email
   const verificationLink = `${process.env.FRONTEND_URL}/verify-email?token=${emailVerificationToken}`;
   await sendEmail(
       newUser.email!,
@@ -75,14 +68,14 @@ export const verifyUserEmail = async (token: string): Promise<Partial<User>> => 
     const user = await prisma.user.findUnique({ where: { emailVerificationToken: token } });
 
     if (!user) {
-        throw new Error('Invalid or expired verification token.');
+        throw new AppError('Invalid or expired verification token', 400);
     }
 
     return prisma.user.update({
         where: { id: user.id },
         data: {
             isEmailVerified: true,
-            emailVerificationToken: null, // Clear the token after use
+            emailVerificationToken: null,
         },
         select: { id: true, email: true, isEmailVerified: true }
     });
@@ -96,16 +89,16 @@ export const loginUser = async (email: string, password: string): Promise<any> =
     const user = await prisma.user.findUnique({ where: { email } });
 
     if (!user) {
-        throw new Error('Invalid credentials');
+        throw new AppError('Invalid credentials', 401);
     }
 
     if (!user.isEmailVerified) {
-        throw new Error('Please verify your email address before logging in.');
+        throw new AppError('Please verify your email address before logging in', 401);
     }
 
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) {
-        throw new Error('Invalid credentials');
+        throw new AppError('Invalid credentials', 401);
     }
 
     const payload = { id: user.id };
@@ -130,12 +123,11 @@ export const loginUser = async (email: string, password: string): Promise<any> =
 export const requestPasswordReset = async (email: string) => {
     const user = await prisma.user.findUnique({ where: { email } });
     if (!user) {
-        // For security, do not reveal if the user exists. Silently succeed.
         return;
     }
 
     const passwordResetToken = generateSecureToken();
-    const passwordResetTokenExpires = new Date(Date.now() + 3600000); // Token expires in 1 hour
+    const passwordResetTokenExpires = new Date(Date.now() + 3600000);
 
     await prisma.user.update({
         where: { id: user.id },
@@ -159,12 +151,12 @@ export const resetUserPassword = async (token: string, newPassword: string): Pro
     const user = await prisma.user.findFirst({
         where: {
             passwordResetToken: token,
-            passwordResetTokenExpires: { gte: new Date() }, // Check if token is not expired
+            passwordResetTokenExpires: { gte: new Date() },
         },
     });
 
     if (!user) {
-        throw new Error('Invalid or expired password reset token.');
+        throw new AppError('Invalid or expired password reset token', 400);
     }
 
     const hashedPassword = await hashPassword(newPassword);
@@ -173,13 +165,12 @@ export const resetUserPassword = async (token: string, newPassword: string): Pro
         where: { id: user.id },
         data: {
             password: hashedPassword,
-            passwordResetToken: null, // Invalidate the token after use
+            passwordResetToken: null,
             passwordResetTokenExpires: null,
         },
         select: { id: true, email: true }
     });
 };
-
 
 export const getUserProfile = async (userId: string): Promise<Partial<User> | null> => {
     return prisma.user.findUnique({

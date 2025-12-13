@@ -175,6 +175,8 @@ describe('M-Pesa Routes', () => {
         process.env.MPESA_TRANSACTION_TYPE = 'CustomerPayBillOnline';
         process.env.MPESA_B2C_INITIATOR_NAME = 'testapi';
         process.env.MPESA_B2C_SECURITY_CREDENTIAL = 'test_credential';
+        process.env.AT_API_KEY = 'test_at_api_key';
+        process.env.AT_USERNAME = 'test_at_username';
 
         const JWT_SECRET = process.env.JWT_SECRET || 'test-secret';
         userToken = jwt.sign({ id: mockUser.id, role: mockUser.role }, JWT_SECRET);

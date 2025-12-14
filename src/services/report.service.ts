@@ -1,6 +1,7 @@
 import { Prisma, PrismaClient } from '@prisma/client';
 import ExcelJS from 'exceljs';
 import PDFDocument from 'pdfkit';
+import logger from '../config/logger';
 
 const prisma = new PrismaClient();
 
@@ -10,25 +11,32 @@ interface DateRange {
 }
 
 export const getFinancialSummary = async (chamaId: string) => {
+    logger.info({ chamaId }, 'Generating financial summary');
+
     const contributions = await prisma.contribution.aggregate({
         _sum: { amount: true, penaltyApplied: true },
         where: { membership: { chamaId }, status: 'PAID' },
     });
+
     const loansDisbursed = await prisma.loan.aggregate({
         _sum: { amount: true },
         where: { membership: { chamaId }, status: { not: 'PENDING' } },
     });
+
     const loanRepayments = await prisma.loanPayment.aggregate({
         _sum: { amount: true },
         where: { loan: { membership: { chamaId } } },
     });
+
     const activeLoans = await prisma.loan.aggregate({
         _sum: { amount: true },
         where: { membership: { chamaId }, status: 'ACTIVE' },
     });
+
     const totalInflow = (contributions._sum.amount || 0) + (loanRepayments._sum.amount || 0);
     const totalOutflow = loansDisbursed._sum.amount || 0;
-    return {
+
+    const summary = {
         totalContributions: contributions._sum.amount || 0,
         totalPenalties: contributions._sum.penaltyApplied || 0,
         totalLoansDisbursed: loansDisbursed._sum.amount || 0,
@@ -36,9 +44,15 @@ export const getFinancialSummary = async (chamaId: string) => {
         outstandingLoanPrincipal: activeLoans._sum.amount || 0,
         netPosition: totalInflow - totalOutflow,
     };
+
+    logger.info({ chamaId, ...summary }, 'Financial summary generated');
+
+    return summary;
 };
 
 export const getContributionsReport = async (chamaId: string, dateRange: DateRange, page: number, limit: number) => {
+    logger.info({ chamaId, dateRange, page, limit }, 'Generating contributions report');
+
     const where: Prisma.ContributionWhereInput = {
         membership: { chamaId },
         paidAt: {
@@ -54,31 +68,45 @@ export const getContributionsReport = async (chamaId: string, dateRange: DateRan
         skip: (page - 1) * limit,
         take: limit,
     });
+
     const totalRecords = await prisma.contribution.count({ where });
+
+    logger.info({ chamaId, count: contributions.length, totalRecords }, 'Contributions report generated');
+
     return { contributions, totalRecords, totalPages: Math.ceil(totalRecords / limit) };
 };
 
 export const getLoanPortfolioReport = async (chamaId: string) => {
+    logger.info({ chamaId }, 'Generating loan portfolio report');
+
     const loanStatusCounts = await prisma.loan.groupBy({
         by: ['status'],
         _count: { status: true },
         _sum: { amount: true },
         where: { membership: { chamaId } },
     });
+
     const totalRepayments = await prisma.loanPayment.aggregate({
         _sum: { amount: true },
         where: { loan: { membership: { chamaId } } },
     });
+
     const portfolio = {
         totalPrincipalDisbursed: 0,
         totalRepayments: totalRepayments._sum.amount || 0,
         statusBreakdown: loanStatusCounts.map(s => ({ status: s.status, count: s._count.status, totalAmount: s._sum.amount || 0 })),
     };
+
     portfolio.totalPrincipalDisbursed = portfolio.statusBreakdown.reduce((sum, s) => sum + s.totalAmount, 0);
+
+    logger.info({ chamaId, totalPrincipalDisbursed: portfolio.totalPrincipalDisbursed, totalRepayments: portfolio.totalRepayments }, 'Loan portfolio report generated');
+
     return portfolio;
 };
 
 export const getCashflowReport = async (chamaId: string, dateRange: DateRange) => {
+    logger.info({ chamaId, dateRange }, 'Generating cashflow report');
+
     const dateFilter = {
         gte: dateRange.from,
         lte: dateRange.to,
@@ -88,17 +116,21 @@ export const getCashflowReport = async (chamaId: string, dateRange: DateRange) =
         _sum: { amount: true },
         where: { membership: { chamaId }, status: 'PAID', paidAt: dateFilter },
     });
+
     const loanRepayments = await prisma.loanPayment.aggregate({
         _sum: { amount: true },
         where: { loan: { membership: { chamaId } }, paidAt: dateFilter },
     });
+
     const outflows = await prisma.loan.aggregate({
         _sum: { amount: true },
         where: { membership: { chamaId }, disbursedAt: dateFilter },
     });
+
     const totalIn = (inflows._sum.amount || 0) + (loanRepayments._sum.amount || 0);
     const totalOut = outflows._sum.amount || 0;
-    return {
+
+    const cashflow = {
         period: { 
             startDate: dateRange.from?.toISOString(),
             endDate: dateRange.to?.toISOString(),
@@ -107,10 +139,16 @@ export const getCashflowReport = async (chamaId: string, dateRange: DateRange) =
         totalOutflows: totalOut,
         netCashflow: totalIn - totalOut,
     };
+
+    logger.info({ chamaId, ...cashflow }, 'Cashflow report generated');
+
+    return cashflow;
 };
 
 export const getMemberPerformanceReport = async (chamaId: string) => {
-    return prisma.membership.findMany({
+    logger.info({ chamaId }, 'Generating member performance report');
+
+    const members = await prisma.membership.findMany({
         where: { chamaId, isActive: true },
         select: {
             id: true,
@@ -127,10 +165,17 @@ export const getMemberPerformanceReport = async (chamaId: string) => {
             }
         },
     });
+
+    logger.info({ chamaId, memberCount: members.length }, 'Member performance report generated');
+
+    return members;
 };
 
 export const getAuditTrailReport = async (chamaId: string, page: number, limit: number) => {
+    logger.info({ chamaId, page, limit }, 'Generating audit trail report');
+
     const where: Prisma.AuditLogWhereInput = { chamaId };
+
     const auditLogs = await prisma.auditLog.findMany({
         where,
         include: { user: { select: { firstName: true, lastName: true, email: true } } },
@@ -138,32 +183,49 @@ export const getAuditTrailReport = async (chamaId: string, page: number, limit: 
         skip: (page - 1) * limit,
         take: limit
     });
+
     const totalRecords = await prisma.auditLog.count({ where });
+
+    logger.info({ chamaId, count: auditLogs.length, totalRecords }, 'Audit trail report generated');
+
     return { logs: auditLogs, totalRecords, totalPages: Math.ceil(totalRecords / limit) };
 };
 
 export const generateReportFile = async (chamaId: string, options: { reportType: string; format: 'pdf' | 'excel'; dateRange: DateRange }): Promise<Buffer> => {
+    logger.info({ chamaId, reportType: options.reportType, format: options.format }, 'Generating report file');
+
     switch (options.reportType) {
         case 'contributions':
             const { contributions } = await getContributionsReport(chamaId, options.dateRange, 1, 10000);
+            
             if (options.format === 'excel') {
                 const buffer = await generateExcel(contributions);
+                logger.info({ chamaId, format: 'excel', recordCount: contributions.length }, 'Excel report generated');
                 return buffer as unknown as Buffer;
             }
+            
             const pdfBuffer = await generatePdf(contributions);
+            logger.info({ chamaId, format: 'pdf', recordCount: contributions.length }, 'PDF report generated');
             return pdfBuffer;
+            
         default:
+            logger.warn({ chamaId, reportType: options.reportType }, 'Unsupported report type');
             throw new Error('Unsupported report type for export.');
     }
 };
 
 const generateExcel = async (data: any[]): Promise<Buffer> => {
+    logger.info({ recordCount: data.length }, 'Generating Excel file');
+
     const workbook = new ExcelJS.Workbook();
     const worksheet = workbook.addWorksheet('Report');
+    
     if (data.length === 0) {
+        logger.warn('No data available for Excel generation');
         const buffer = await workbook.csv.writeBuffer();
         return buffer as unknown as Buffer;
     }
+
     const simpleData = data.map(d => ({
         memberName: `${d.membership.user.firstName} ${d.membership.user.lastName}`,
         amount: d.amount,
@@ -173,25 +235,39 @@ const generateExcel = async (data: any[]): Promise<Buffer> => {
         paymentMethod: d.paymentMethod,
         datePaid: d.paidAt,
     }));
+
     worksheet.columns = Object.keys(simpleData[0]).map(key => ({ header: key, key, width: 25 }));
     worksheet.addRows(simpleData);
+
     const buffer = await workbook.csv.writeBuffer();
+    
+    logger.info({ rowCount: simpleData.length }, 'Excel file generated successfully');
+    
     return buffer as unknown as Buffer;
 };
 
 const generatePdf = (data: any[]): Promise<Buffer> => {
+    logger.info({ recordCount: data.length }, 'Generating PDF file');
+
     return new Promise((resolve) => {
         const doc = new PDFDocument({ size: 'A4', margin: 50 });
         const buffers: any[] = [];
+        
         doc.on('data', buffers.push.bind(buffers));
-        doc.on('end', () => resolve(Buffer.concat(buffers)));
+        doc.on('end', () => {
+            logger.info({ recordCount: data.length }, 'PDF file generated successfully');
+            resolve(Buffer.concat(buffers));
+        });
+
         doc.fontSize(18).text('Chama Contributions Report', { align: 'center' });
         doc.moveDown();
+
         if (data.length > 0) {
             doc.fontSize(10);
             doc.font('Helvetica-Bold');
             doc.text('Member | Amount | Month/Year | Date Paid');
             doc.font('Helvetica');
+            
             data.forEach(item => {
                 const name = `${item.membership.user.firstName} ${item.membership.user.lastName}`;
                 const row = `${name} | ${item.amount} | ${item.month}/${item.year} | ${new Date(item.paidAt!).toLocaleDateString()}`;
@@ -200,6 +276,7 @@ const generatePdf = (data: any[]): Promise<Buffer> => {
         } else {
             doc.text('No data available for this report.');
         }
+
         doc.end();
     });
 };

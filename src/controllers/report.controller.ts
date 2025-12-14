@@ -3,6 +3,7 @@ import * as reportService from '../services/report.service';
 import { isErrorWithMessage } from '../utils/error.utils';
 import { Prisma, AuditAction } from '@prisma/client';
 import * as auditService from '../services/audit.service';
+import logger from '../config/logger';
 
 const getDateFromParam = (param: any): Date | undefined => {
     if (param && typeof param === 'string') {
@@ -28,8 +29,10 @@ const toAuditActionArray = (actions: string[]): AuditAction[] => {
 export const getFinancialSummary = async (req: Request, res: Response) => {
     try {
         const summary = await reportService.getFinancialSummary(req.params.chamaId);
+        logger.info({ chamaId: req.params.chamaId }, 'Financial summary generated');
         res.status(200).json({ data: summary });
     } catch (error) {
+        logger.error({ error, chamaId: req.params.chamaId }, 'Error generating financial summary');
         res.status(500).json({ message: 'Error generating financial summary.' });
     }
 };
@@ -47,11 +50,13 @@ export const getContributionsReport = async (req: Request, res: Response) => {
 
         const { contributions, totalRecords, totalPages } = await reportService.getContributionsReport(chamaId, dateRange, page, limit);
         
+        logger.info({ chamaId, page, limit, totalRecords, dateRange }, 'Contributions report generated');
         res.status(200).json({
             data: contributions,
             meta: { page, limit, totalRecords, totalPages }
         });
     } catch (error) {
+        logger.error({ error, chamaId: req.params.chamaId }, 'Error generating contributions report');
         res.status(500).json({ message: 'Error generating contributions report.' });
     }
 };
@@ -59,9 +64,10 @@ export const getContributionsReport = async (req: Request, res: Response) => {
 export const getLoanPortfolioReport = async (req: Request, res: Response) => {
     try {
         const report = await reportService.getLoanPortfolioReport(req.params.chamaId);
+        logger.info({ chamaId: req.params.chamaId }, 'Loan portfolio report generated');
         res.status(200).json({ data: report });
     } catch (error) {
-        console.error("Error in getLoanPortfolioReport:", error);
+        logger.error({ error, chamaId: req.params.chamaId }, 'Error generating loan portfolio report');
         res.status(500).json({ message: 'Error generating loan portfolio report.' });
     }
 };
@@ -75,8 +81,10 @@ export const getCashflowReport = async (req: Request, res: Response) => {
         };
 
         const report = await reportService.getCashflowReport(chamaId, dateRange);
+        logger.info({ chamaId, dateRange }, 'Cashflow report generated');
         res.status(200).json({ data: report });
     } catch (error) {
+        logger.error({ error, chamaId: req.params.chamaId }, 'Error generating cashflow report');
         res.status(500).json({ message: 'Error generating cashflow report.' });
     }
 };
@@ -84,8 +92,10 @@ export const getCashflowReport = async (req: Request, res: Response) => {
 export const getMemberPerformanceReport = async (req: Request, res: Response) => {
     try {
         const report = await reportService.getMemberPerformanceReport(req.params.chamaId);
+        logger.info({ chamaId: req.params.chamaId }, 'Member performance report generated');
         res.status(200).json({ data: report });
     } catch (error) {
+        logger.error({ error, chamaId: req.params.chamaId }, 'Error generating member performance report');
         res.status(500).json({ message: 'Error generating member performance report.' });
     }
 };
@@ -102,11 +112,13 @@ export const getAuditTrailReport = async (req: Request, res: Response) => {
             filter: { chamaId }
         });
 
+        logger.info({ chamaId, page, limit, totalRecords }, 'Audit trail report generated');
         res.status(200).json({ 
             data: logs,
             meta: { page, limit, totalRecords, totalPages }
         });
     } catch (error) {
+        logger.error({ error, chamaId: req.params.chamaId }, 'Error generating audit trail report');
         res.status(500).json({ message: 'Error generating audit trail report.' });
     }
 };
@@ -135,8 +147,10 @@ export const searchAuditLogs = async (req: Request, res: Response) => {
         }
 
         const { logs, totalRecords, totalPages } = await auditService.findLogs({ page, limit, filter });
+        logger.info({ page, limit, totalRecords, filter }, 'Audit logs searched');
         res.status(200).json({ data: logs, meta: { page, limit, totalRecords, totalPages } });
     } catch (error) {
+        logger.error({ error, filter: req.query }, 'Error searching audit logs');
         res.status(500).json({ message: 'Error searching audit logs.' });
     }
 };
@@ -168,17 +182,20 @@ export const exportAuditLogs = async (req: Request, res: Response) => {
         const { logs } = await auditService.findLogs({ page: 1, limit: 10000, filter });
         
         if (logs.length === 0) {
+            logger.warn({ filter }, 'No logs found for export');
             return res.status(404).json({ message: "No logs found matching the specified criteria for export." });
         }
 
         const buffer = await auditService.generateAuditExport(logs);
         const filename = `audit-report-${new Date().toISOString()}.csv`;
 
+        logger.info({ logsCount: logs.length, filter }, 'Audit logs exported');
         res.setHeader('Content-Type', 'text/csv');
         res.setHeader('Content-Disposition', `attachment; filename=${filename}`);
         res.status(200).send(buffer);
 
     } catch (error) {
+        logger.error({ error }, 'Error exporting audit logs');
         res.status(500).json({ message: 'Error exporting audit logs.' });
     }
 };
@@ -203,13 +220,16 @@ export const exportReport = async (req: Request, res: Response) => {
         const contentType = format === 'pdf' ? 'application/pdf' : 'text/csv';
         const filename = `${reportType}-report-${chamaId}-${new Date().toISOString()}.${extension}`;
 
+        logger.info({ chamaId, reportType, format, dateRange }, 'Report exported');
         res.setHeader('Content-Type', contentType);
         res.setHeader('Content-Disposition', `attachment; filename=${filename}`);
         res.status(200).send(buffer);
     } catch (error) {
         if (isErrorWithMessage(error)) {
+            logger.warn({ error, chamaId: req.params.chamaId, reportType: req.body.reportType }, 'Report export failed');
             return res.status(400).json({ message: error.message });
         }
+        logger.error({ error, chamaId: req.params.chamaId }, 'Error exporting report');
         res.status(500).json({ message: 'Error exporting report.' });
     }
 };

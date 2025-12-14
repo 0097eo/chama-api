@@ -4,6 +4,7 @@ import qrcode from 'qrcode';
 import * as ics from 'ics';
 import { createBulkNotifications } from './notification.service';
 import { createAuditLog } from './audit.service';
+import logger from '../config/logger';
 
 
 interface LogMeta {
@@ -31,6 +32,13 @@ export const scheduleMeeting = async (data: Prisma.MeetingCreateInput, actorId: 
         }
     });
 
+    logger.info({ 
+        meetingId: meeting.id, 
+        chamaId, 
+        actorId, 
+        title: meeting.title, 
+        scheduledFor: meeting.scheduledFor 
+    }, 'Meeting scheduled');
 
     await createBulkNotifications(
         meeting.chamaId,
@@ -59,17 +67,26 @@ export const scheduleMeeting = async (data: Prisma.MeetingCreateInput, actorId: 
  */
 export const markAttendance = async (meetingId: string, userId: string, logMeta: LogMeta) => {
     const meeting = await prisma.meeting.findUnique({ where: { id: meetingId } });
-    if (!meeting) throw new Error('Meeting not found.');
+    if (!meeting) {
+        logger.warn({ meetingId, userId }, 'Meeting not found for attendance');
+        throw new Error('Meeting not found.');
+    }
 
     const membership = await prisma.membership.findFirst({
         where: { userId, chamaId: meeting.chamaId, isActive: true },
     });
-    if (!membership) throw new Error('You are not an active member of the chama this meeting belongs to.');
+    if (!membership) {
+        logger.warn({ meetingId, userId, chamaId: meeting.chamaId }, 'User not an active member');
+        throw new Error('You are not an active member of the chama this meeting belongs to.');
+    }
 
     const existingAttendance = await prisma.meetingAttendance.findUnique({
         where: { meetingId_membershipId: { meetingId, membershipId: membership.id } }
     });
-    if (existingAttendance) throw new Error('Attendance has already been marked for this member.');
+    if (existingAttendance) {
+        logger.warn({ meetingId, membershipId: membership.id }, 'Attendance already marked');
+        throw new Error('Attendance has already been marked for this member.');
+    }
 
     const newAttendance = await prisma.meetingAttendance.create({
         data: {
@@ -77,6 +94,13 @@ export const markAttendance = async (meetingId: string, userId: string, logMeta:
             membershipId: membership.id,
         },
     });
+
+    logger.info({ 
+        meetingId, 
+        userId, 
+        membershipId: membership.id, 
+        attendanceId: newAttendance.id 
+    }, 'Attendance marked');
 
     await createAuditLog({
         action: AuditAction.MEETING_ATTENDANCE_MARK,
@@ -95,6 +119,13 @@ export const updateMeeting = async (meetingId: string, data: Partial<Meeting>, a
     const oldValue = await prisma.meeting.findUnique({ where: { id: meetingId } });
     const updatedMeeting = await prisma.meeting.update({ where: { id: meetingId }, data });
 
+    logger.info({ 
+        meetingId, 
+        actorId, 
+        chamaId: updatedMeeting.chamaId, 
+        updates: Object.keys(data) 
+    }, 'Meeting updated');
+
     await createAuditLog({
         action: AuditAction.MEETING_UPDATE,
         actorId,
@@ -110,13 +141,23 @@ export const updateMeeting = async (meetingId: string, data: Partial<Meeting>, a
 
 export const saveMeetingMinutes = async (meetingId: string, minutes: string, actorId: string, logMeta: LogMeta) => {
     const oldValue = await prisma.meeting.findUnique({ where: { id: meetingId } });
-    if (!oldValue) throw new Error("Meeting not found.");
+    if (!oldValue) {
+        logger.warn({ meetingId }, 'Meeting not found for saving minutes');
+        throw new Error("Meeting not found.");
+    }
 
     // When minutes are saved, the meeting is marked as COMPLETED
     const updatedMeeting = await prisma.meeting.update({
         where: { id: meetingId },
         data: { minutes, status: MeetingStatus.COMPLETED }
     });
+
+    logger.info({ 
+        meetingId, 
+        actorId, 
+        chamaId: updatedMeeting.chamaId, 
+        status: MeetingStatus.COMPLETED 
+    }, 'Meeting minutes saved');
 
     await createAuditLog({
         action: AuditAction.MEETING_MINUTES_SAVE,
@@ -138,6 +179,12 @@ export const cancelMeeting = async (meetingId: string, actorId: string, logMeta:
         data: { status: MeetingStatus.CANCELLED },
     });
     
+    logger.info({ 
+        meetingId, 
+        actorId, 
+        chamaId: cancelledMeeting.chamaId 
+    }, 'Meeting cancelled');
+
     await createAuditLog({
         action: AuditAction.MEETING_CANCEL,
         actorId,
@@ -160,9 +207,10 @@ export const generateQrCode = async (meetingId: string): Promise<string> => {
         // The QR code will simply contain the meeting ID.
         // The frontend app will scan this, get the ID, and make an API call.
         const qrCodeDataUrl = await qrcode.toDataURL(meetingId);
+        logger.debug({ meetingId }, 'QR code generated');
         return qrCodeDataUrl;
     } catch (err) {
-        console.error('QR Code Generation Error:', err);
+        logger.error({ error: err, meetingId }, 'QR code generation error');
         throw new Error('Failed to generate QR code.');
     }
 };
@@ -190,9 +238,10 @@ export const generateIcsFile = (meeting: Meeting): Promise<Buffer> => {
     return new Promise((resolve, reject) => {
         ics.createEvent(event, (error, value) => {
             if (error) {
-                console.error('ICS Generation Error:', error);
+                logger.error({ error, meetingId: meeting.id }, 'ICS generation error');
                 return reject(new Error('Failed to create calendar event.'));
             }
+            logger.debug({ meetingId: meeting.id, title: meeting.title }, 'ICS file generated');
             resolve(Buffer.from(value));
         });
     });

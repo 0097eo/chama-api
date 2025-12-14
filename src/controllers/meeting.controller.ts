@@ -2,6 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 import { PrismaClient } from '@prisma/client';
 import * as meetingService from '../services/meeting.service';
 import { MeetingStatus } from '@prisma/client';
+import logger from '../config/logger';
 
 const prisma = new PrismaClient();
 
@@ -25,6 +26,13 @@ export const scheduleMeeting = async (
       userAgent: req.headers['user-agent'] 
     };
 
+    logger.debug({ 
+      actorId, 
+      chamaId, 
+      title, 
+      scheduledFor 
+    }, 'Scheduling new meeting');
+
     const data = { 
       title, 
       agenda, 
@@ -35,11 +43,23 @@ export const scheduleMeeting = async (
     
     const meeting = await meetingService.scheduleMeeting(data, actorId, logMeta);
     
+    logger.info({ 
+      actorId, 
+      meetingId: meeting.id, 
+      chamaId, 
+      scheduledFor: meeting.scheduledFor 
+    }, 'Meeting scheduled successfully');
+    
     res.status(201).json({ 
       message: 'Meeting scheduled successfully.', 
       data: meeting 
     });
   } catch (error) {
+    logger.error({ 
+      error, 
+      actorId: req.user?.id, 
+      chamaId: req.body.chamaId 
+    }, 'Error scheduling meeting');
     next(error);
   }
 };
@@ -54,23 +74,44 @@ export const updateMeeting = async (
 ) => {
   try {
     const actorId = req.user?.id!;
+    const { id: meetingId } = req.params;
+    const updateFields = Object.keys(req.body);
     const logMeta = { 
       ipAddress: req.ip, 
       userAgent: req.headers['user-agent'] 
     };
+
+    logger.debug({ 
+      actorId, 
+      meetingId, 
+      updateFields 
+    }, 'Updating meeting');
     
     const updatedMeeting = await meetingService.updateMeeting(
-      req.params.id,
+      meetingId,
       req.body,
       actorId,
       logMeta
     );
+    
+    logger.info({ 
+      actorId, 
+      meetingId, 
+      updateFields,
+      chamaId: updatedMeeting.chamaId 
+    }, 'Meeting updated successfully');
     
     res.status(200).json({ 
       message: 'Meeting updated successfully.', 
       data: updatedMeeting 
     });
   } catch (error) {
+    logger.error({ 
+      error, 
+      actorId: req.user?.id, 
+      meetingId: req.params.id,
+      updateFields: Object.keys(req.body) 
+    }, 'Error updating meeting');
     next(error);
   }
 };
@@ -85,17 +126,27 @@ export const cancelMeeting = async (
 ) => {
   try {
     const actorId = req.user?.id!;
+    const { id: meetingId } = req.params;
     const logMeta = { 
       ipAddress: req.ip, 
       userAgent: req.headers['user-agent'] 
     };
+
+    logger.debug({ actorId, meetingId }, 'Cancelling meeting');
     
-    await meetingService.cancelMeeting(req.params.id, actorId, logMeta);
+    await meetingService.cancelMeeting(meetingId, actorId, logMeta);
+    
+    logger.info({ actorId, meetingId }, 'Meeting cancelled successfully');
     
     res.status(200).json({ 
       message: 'Meeting has been cancelled.' 
     });
   } catch (error) {
+    logger.error({ 
+      error, 
+      actorId: req.user?.id, 
+      meetingId: req.params.id 
+    }, 'Error cancelling meeting');
     next(error);
   }
 };
@@ -111,22 +162,37 @@ export const markAttendance = async (
 ) => {
   try {
     const actorId = req.user?.id!;
+    const { id: meetingId } = req.params;
     const logMeta = { 
       ipAddress: req.ip, 
       userAgent: req.headers['user-agent'] 
     };
+
+    logger.debug({ actorId, meetingId }, 'Marking attendance');
     
     const attendance = await meetingService.markAttendance(
-      req.params.id,
+      meetingId,
       actorId,
       logMeta
     );
+    
+    logger.info({ 
+      actorId, 
+      meetingId, 
+      attendanceId: attendance.id,
+      membershipId: attendance.membershipId 
+    }, 'Attendance marked successfully');
     
     res.status(201).json({ 
       message: 'Attendance marked successfully.', 
       data: attendance 
     });
   } catch (error) {
+    logger.error({ 
+      error, 
+      actorId: req.user?.id, 
+      meetingId: req.params.id 
+    }, 'Error marking attendance');
     next(error);
   }
 };
@@ -141,22 +207,41 @@ export const saveMeetingMinutes = async (
 ) => {
   try {
     const actorId = req.user?.id!;
+    const { id: meetingId } = req.params;
+    const { minutes } = req.body;
     const logMeta = { 
       ipAddress: req.ip, 
       userAgent: req.headers['user-agent'] 
     };
+
+    logger.debug({ 
+      actorId, 
+      meetingId, 
+      minutesLength: minutes?.length 
+    }, 'Saving meeting minutes');
     
     await meetingService.saveMeetingMinutes(
-      req.params.id,
-      req.body.minutes,
+      meetingId,
+      minutes,
       actorId,
       logMeta
     );
+    
+    logger.info({ 
+      actorId, 
+      meetingId, 
+      minutesLength: minutes?.length 
+    }, 'Meeting minutes saved successfully');
     
     res.status(200).json({ 
       message: 'Meeting minutes saved successfully.' 
     });
   } catch (error) {
+    logger.error({ 
+      error, 
+      actorId: req.user?.id, 
+      meetingId: req.params.id 
+    }, 'Error saving meeting minutes');
     next(error);
   }
 };
@@ -170,13 +255,26 @@ export const getChamaMeetings = async (
   next: NextFunction
 ) => {
   try {
+    const { chamaId } = req.params;
+
+    logger.debug({ chamaId }, 'Fetching chama meetings');
+
     const meetings = await prisma.meeting.findMany({ 
-      where: { chamaId: req.params.chamaId }, 
+      where: { chamaId }, 
       orderBy: { scheduledFor: 'desc' } 
     });
     
+    logger.info({ 
+      chamaId, 
+      meetingsCount: meetings.length 
+    }, 'Chama meetings retrieved successfully');
+    
     res.status(200).json({ data: meetings });
   } catch (error) {
+    logger.error({ 
+      error, 
+      chamaId: req.params.chamaId 
+    }, 'Error fetching chama meetings');
     next(error);
   }
 };
@@ -190,17 +288,30 @@ export const getUpcomingMeetings = async (
   next: NextFunction
 ) => {
   try {
+    const { chamaId } = req.params;
+
+    logger.debug({ chamaId }, 'Fetching upcoming meetings');
+
     const meetings = await prisma.meeting.findMany({ 
       where: { 
-        chamaId: req.params.chamaId, 
+        chamaId, 
         status: MeetingStatus.SCHEDULED, 
         scheduledFor: { gte: new Date() } 
       }, 
       orderBy: { scheduledFor: 'asc' } 
     });
     
+    logger.info({ 
+      chamaId, 
+      upcomingMeetingsCount: meetings.length 
+    }, 'Upcoming meetings retrieved successfully');
+    
     res.status(200).json({ data: meetings });
   } catch (error) {
+    logger.error({ 
+      error, 
+      chamaId: req.params.chamaId 
+    }, 'Error fetching upcoming meetings');
     next(error);
   }
 };
@@ -214,16 +325,31 @@ export const getMeetingDetails = async (
   next: NextFunction
 ) => {
   try {
+    const { id: meetingId } = req.params;
+
+    logger.debug({ meetingId }, 'Fetching meeting details');
+
     const meeting = await prisma.meeting.findUnique({ 
-      where: { id: req.params.id } 
+      where: { id: meetingId } 
     });
     
     if (!meeting) {
+      logger.warn({ meetingId }, 'Meeting not found');
       return res.status(404).json({ message: 'Meeting not found.' });
     }
     
+    logger.info({ 
+      meetingId, 
+      chamaId: meeting.chamaId,
+      status: meeting.status 
+    }, 'Meeting details retrieved successfully');
+    
     res.status(200).json({ data: meeting });
   } catch (error) {
+    logger.error({ 
+      error, 
+      meetingId: req.params.id 
+    }, 'Error fetching meeting details');
     next(error);
   }
 };
@@ -237,8 +363,12 @@ export const getAttendanceList = async (
   next: NextFunction
 ) => {
   try {
+    const { id: meetingId } = req.params;
+
+    logger.debug({ meetingId }, 'Fetching attendance list');
+
     const attendance = await prisma.meetingAttendance.findMany({
-      where: { meetingId: req.params.id },
+      where: { meetingId },
       include: { 
         membership: { 
           include: { 
@@ -250,8 +380,17 @@ export const getAttendanceList = async (
       }
     });
     
+    logger.info({ 
+      meetingId, 
+      attendanceCount: attendance.length 
+    }, 'Attendance list retrieved successfully');
+    
     res.status(200).json({ data: attendance });
   } catch (error) {
+    logger.error({ 
+      error, 
+      meetingId: req.params.id 
+    }, 'Error fetching attendance list');
     next(error);
   }
 };
@@ -265,10 +404,20 @@ export const generateAttendanceQrCode = async (
   next: NextFunction
 ) => {
   try {
-    const qrCode = await meetingService.generateQrCode(req.params.id);
+    const { id: meetingId } = req.params;
+
+    logger.debug({ meetingId }, 'Generating attendance QR code');
+
+    const qrCode = await meetingService.generateQrCode(meetingId);
+    
+    logger.info({ meetingId }, 'QR code generated successfully');
     
     res.status(200).json({ data: { qrCodeDataUrl: qrCode } });
   } catch (error) {
+    logger.error({ 
+      error, 
+      meetingId: req.params.id 
+    }, 'Error generating QR code');
     next(error);
   }
 };
@@ -283,20 +432,35 @@ export const generateCalendarFile = async (
   next: NextFunction
 ) => {
   try {
+    const { id: meetingId } = req.params;
+
+    logger.debug({ meetingId }, 'Generating calendar file');
+
     const meeting = await prisma.meeting.findUnique({ 
-      where: { id: req.params.id } 
+      where: { id: meetingId } 
     });
     
     if (!meeting) {
+      logger.warn({ meetingId }, 'Calendar file requested for non-existent meeting');
       return res.status(404).json({ message: 'Meeting not found.' });
     }
     
     const fileBuffer = await meetingService.generateIcsFile(meeting);
     
+    logger.info({ 
+      meetingId, 
+      chamaId: meeting.chamaId,
+      fileSize: fileBuffer.length 
+    }, 'Calendar file generated successfully');
+    
     res.setHeader('Content-Type', 'text/calendar');
     res.setHeader('Content-Disposition', `attachment; filename=meeting-${meeting.id}.ics`);
     res.status(200).send(fileBuffer);
   } catch (error) {
+    logger.error({ 
+      error, 
+      meetingId: req.params.id 
+    }, 'Error generating calendar file');
     next(error);
   }
 };

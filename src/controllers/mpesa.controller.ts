@@ -5,6 +5,7 @@ import { PrismaClient } from '@prisma/client';
 import { MembershipRole } from '@prisma/client';
 import { LoanStatus, TransactionType } from '@prisma/client';
 import { addMonths } from 'date-fns';
+import logger from '../config/logger';
 
 const prisma = new PrismaClient();
 
@@ -44,8 +45,8 @@ export const initiateStkPushController = async (req: AuthenticatedRequest, res: 
 };
 
 export const handleMpesaCallback = async (req: Request, res: Response) => {
-    console.log('--- M-PESA CALLBACK RECEIVED ---');
-    console.log(JSON.stringify(req.body, null, 2));
+    logger.info('--- M-PESA CALLBACK RECEIVED ---');
+    logger.info({ body: req.body }, 'Callback data');
 
     // Acknowledge the request to Safaricom immediately
     res.status(200).json({ ResultCode: 0, ResultDesc: "Accepted" });
@@ -75,23 +76,23 @@ export const handleMpesaCallback = async (req: Request, res: Response) => {
                 },
             });
             if (updateResult.count > 0) {
-                 console.log(`Successfully updated contribution with Checkout ID ${checkoutRequestId} as PAID.`);
+                 logger.info({ checkoutRequestId }, `Successfully updated contribution with Checkout ID ${checkoutRequestId} as PAID.`);
             } else {
-                console.warn(`No contribution found for Checkout ID ${checkoutRequestId}.`);
+                logger.warn({ checkoutRequestId }, `No contribution found for Checkout ID ${checkoutRequestId}.`);
             }
         } else {
             // Payment Failed or Canceled
             const resultDesc = callbackData.ResultDesc;
-            console.log(`M-Pesa transaction failed for ${checkoutRequestId}. Reason: ${resultDesc}`);
+            logger.info({ checkoutRequestId, resultDesc }, `M-Pesa transaction failed for ${checkoutRequestId}. Reason: ${resultDesc}`);
         }
     } catch (error) {
-        console.error('Error processing M-Pesa callback asynchronously:', error);
+        logger.error({ error }, 'Error processing M-Pesa callback asynchronously:');
     }
 };
 
 
 export const acknowledgeMpesaRequest = (req: Request, res: Response) => {
-    console.log('--- SAFARICOM PING RECEIVED ---');
+    logger.info('SAFARICOM PING RECEIVED');
     res.status(200).json({ ResultCode: 0, ResultDesc: "Accepted" });
 };
 
@@ -159,8 +160,8 @@ export const disburseLoanB2CController = async (req: AuthenticatedRequest, res: 
 };
 
 export const handleB2CResultCallback = async (req: Request, res: Response) => {
-    console.log('--- M-PESA B2C RESULT CALLBACK ---');
-    console.log(JSON.stringify(req.body, null, 2));
+    logger.info('M-PESA B2C RESULT CALLBACK');
+    logger.info({ body: req.body }, 'Callback data');
 
     // Acknowledge the request to Safaricom immediately to prevent timeouts
     res.status(200).json({ ResultCode: 0, ResultDesc: "Accepted" });
@@ -181,7 +182,7 @@ export const handleB2CResultCallback = async (req: Request, res: Response) => {
         });
 
         if (!loan) {
-            console.warn(`No loan found for B2C ConversationID: ${conversationID}. Ignoring callback.`);
+            logger.warn({ conversationID }, `No loan found for B2C ConversationID: ${conversationID}. Ignoring callback.`);
             return;
         }
 
@@ -214,23 +215,23 @@ export const handleB2CResultCallback = async (req: Request, res: Response) => {
                 });
             });
 
-            console.log(`Successfully processed B2C payment for loan ${loan.id}. Status set to ACTIVE.`);
+            logger.info({ loanId: loan.id }, `Successfully processed B2C payment for loan ${loan.id}. Status set to ACTIVE.`);
             // TODO: Send a success notification (email/SMS) to the member.
 
         } else {
             // Handle failed B2C transaction
             const resultDesc = result.ResultDesc;
-            console.error(`B2C disbursement failed for loan ${loan.id}. Reason: ${resultDesc}`);
+            logger.error({ loanId: loan.id, resultDesc }, `B2C disbursement failed for loan ${loan.id}. Reason: ${resultDesc}`);
         }
 
     } catch (error) {
-        console.error('Error processing M-Pesa B2C callback asynchronously:', error);
+        logger.error({ error }, 'Error processing M-Pesa B2C callback asynchronously:');
     }
 };
 
 export const handleB2CTimeoutCallback = async (req: Request, res: Response) => {
-    console.log('--- M-PESA B2C TIMEOUT CALLBACK ---');
-    console.log(JSON.stringify(req.body, null, 2));
+    logger.info('M-PESA B2C TIMEOUT CALLBACK');
+    logger.info({ body: req.body }, 'Callback data');
 
     // Acknowledge the request
     res.status(200).json({ ResultCode: 0, ResultDesc: "Accepted" });
@@ -250,7 +251,7 @@ export const handleB2CTimeoutCallback = async (req: Request, res: Response) => {
         });
 
         if (!loan) {
-            console.warn(`Timeout callback received for an unknown ConversationID: ${conversationID}`);
+            logger.warn({ conversationID }, `Timeout callback received for an unknown ConversationID: ${conversationID}`);
             return;
         }
 
@@ -263,11 +264,11 @@ export const handleB2CTimeoutCallback = async (req: Request, res: Response) => {
             }
         });
         
-        console.log(`B2C disbursement for loan ${loan.id} timed out. Loan status reverted to APPROVED for retry.`);
+        logger.info({ loanId: loan.id }, `B2C disbursement for loan ${loan.id} timed out. Loan status reverted to APPROVED for retry.`);
         // TODO: Notify the treasurer that the disbursement timed out and needs to be re-initiated.
 
     } catch (error) {
-        console.error('Error processing M-Pesa B2C timeout callback asynchronously:', error);
+        logger.error({ error }, 'Error processing M-Pesa B2C timeout callback asynchronously:');
     }
 };
 
@@ -300,6 +301,6 @@ export const getMpesaTransactionsController = async (req: Request, res: Response
             }
         }
     });
-
+    logger.info({ chamaId, contributionsCount: contributions.length, loanDisbursementsCount: loanDisbursements.length }, 'M-Pesa transactions fetched');
     res.status(200).json({ data: { contributions, loanDisbursements }});
 };

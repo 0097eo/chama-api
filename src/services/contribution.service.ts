@@ -2,6 +2,7 @@ import { Contribution, Prisma, PrismaClient, AuditAction } from '@prisma/client'
 import Papa from 'papaparse';
 import ExcelJS from 'exceljs';
 import { createAuditLog } from './audit.service';
+import logger from '../config/logger';
 
 const prisma = new PrismaClient();
 
@@ -48,21 +49,35 @@ const calculatePenalty = (contributionData: ContributionData, standardAmount: nu
  * Records a new contribution, checks for duplicates, applies penalties, and creates an audit log.
  */
 export const recordContribution = async (data: ContributionData, actorId: string, logMeta: LogMeta): Promise<Contribution> => {
+    logger.info({ membershipId: data.membershipId, actorId, month: data.month, year: data.year }, 'Recording contribution');
+
     const membership = await prisma.membership.findUnique({
         where: { id: data.membershipId },
         include: { chama: true },
     });
-    if (!membership) throw new Error('Membership not found.');
+
+    if (!membership) {
+        logger.warn({ membershipId: data.membershipId }, 'Membership not found');
+        throw new Error('Membership not found.');
+    }
 
     const canRecord = membership.userId === actorId || await prisma.membership.findFirst({
         where: { userId: actorId, chamaId: membership.chamaId, role: { in: ['ADMIN', 'TREASURER'] } }
     });
-    if (!canRecord) throw new Error('Permission Denied: You cannot record a contribution for this member.');
+
+    if (!canRecord) {
+        logger.warn({ actorId, membershipId: data.membershipId, chamaId: membership.chamaId }, 'Permission denied for recording contribution');
+        throw new Error('Permission Denied: You cannot record a contribution for this member.');
+    }
 
     const existingContribution = await prisma.contribution.findFirst({
         where: { membershipId: data.membershipId, month: data.month, year: data.year }
     });
-    if (existingContribution) throw new Error('A contribution for this member for the specified month and year already exists.');
+
+    if (existingContribution) {
+        logger.warn({ membershipId: data.membershipId, month: data.month, year: data.year }, 'Duplicate contribution attempt');
+        throw new Error('A contribution for this member for the specified month and year already exists.');
+    }
 
     // Determine the final status and penalty
     const finalStatus = data.status || 'PAID'; // Default to PAID for backward compatibility
@@ -86,6 +101,8 @@ export const recordContribution = async (data: ContributionData, actorId: string
         ...logMeta,
     });
 
+    logger.info({ contributionId: newContribution.id, membershipId: data.membershipId, amount: data.amount, penaltyApplied }, 'Contribution recorded successfully');
+
     return newContribution;
 };
 
@@ -93,19 +110,28 @@ export const recordContribution = async (data: ContributionData, actorId: string
  * Updates an existing contribution record and creates an audit log.
  */
 export const updateContribution = async (id: string, data: Partial<Contribution>, actorId: string, logMeta: LogMeta) => {
+    logger.info({ contributionId: id, actorId }, 'Updating contribution');
+
     const oldValue = await prisma.contribution.findUnique({
         where: { id },
         include: { membership: true }
     });
-    if (!oldValue) throw new Error('Contribution not found.');
+
+    if (!oldValue) {
+        logger.warn({ contributionId: id }, 'Contribution not found');
+        throw new Error('Contribution not found.');
+    }
 
     // If updating from PENDING to PAID, recalculate penalty
     let updateData = { ...data };
     if (oldValue.status === 'PENDING' && data.status === 'PAID') {
+        logger.info({ contributionId: id }, 'Recalculating penalty for status change from PENDING to PAID');
+        
         const membership = await prisma.membership.findUnique({
             where: { id: oldValue.membershipId },
             include: { chama: true }
         });
+
         if (membership) {
             const contributionData = {
                 ...oldValue,
@@ -131,6 +157,8 @@ export const updateContribution = async (id: string, data: Partial<Contribution>
         newValue: updatedContribution,
         ...logMeta,
     });
+
+    logger.info({ contributionId: id, actorId }, 'Contribution updated successfully');
     
     return updatedContribution;
 };
@@ -139,11 +167,17 @@ export const updateContribution = async (id: string, data: Partial<Contribution>
  * Deletes a contribution record and creates an audit log.
  */
 export const deleteContribution = async (id: string, actorId: string, logMeta: LogMeta) => {
+    logger.info({ contributionId: id, actorId }, 'Deleting contribution');
+
     const oldValue = await prisma.contribution.findUnique({
         where: { id },
         include: { membership: true }
     });
-    if (!oldValue) throw new Error('Contribution not found.');
+
+    if (!oldValue) {
+        logger.warn({ contributionId: id }, 'Contribution not found');
+        throw new Error('Contribution not found.');
+    }
     
     const deletedContribution = await prisma.contribution.delete({ where: { id } });
 
@@ -155,12 +189,17 @@ export const deleteContribution = async (id: string, actorId: string, logMeta: L
         ...logMeta,
     });
 
+    logger.info({ contributionId: id, actorId }, 'Contribution deleted successfully');
+
     return deletedContribution;
 };
 
 export const findChamaContributions = async (chamaId: string, page: number, limit: number) => {
+    logger.info({ chamaId, page, limit }, 'Fetching chama contributions');
+
     const skip = (page - 1) * limit;
     const where: Prisma.ContributionWhereInput = { membership: { chamaId } };
+    
     const contributions = await prisma.contribution.findMany({
         where,
         skip,
@@ -168,34 +207,60 @@ export const findChamaContributions = async (chamaId: string, page: number, limi
         include: { membership: { include: { user: { select: { firstName: true, lastName: true } } } } },
         orderBy: { paidAt: 'desc' }
     });
+
     const totalRecords = await prisma.contribution.count({ where });
+
+    logger.info({ chamaId, count: contributions.length, totalRecords }, 'Chama contributions fetched successfully');
+
     return { contributions, totalRecords, totalPages: Math.ceil(totalRecords / limit) };
 };
 
 export const findMemberContributions = async (membershipId: string) => {
-    return prisma.contribution.findMany({
+    logger.info({ membershipId }, 'Fetching member contributions');
+
+    const contributions = await prisma.contribution.findMany({
         where: { membershipId },
         orderBy: [{ year: 'desc' }, { month: 'desc' }]
     });
+
+    logger.info({ membershipId, count: contributions.length }, 'Member contributions fetched successfully');
+
+    return contributions;
 };
 
-export const findContributionById = (id: string) => {
-    return prisma.contribution.findUnique({ where: { id } });
+export const findContributionById = async (id: string) => {
+    logger.info({ contributionId: id }, 'Fetching contribution by ID');
+
+    const contribution = await prisma.contribution.findUnique({ where: { id } });
+
+    if (contribution) {
+        logger.info({ contributionId: id }, 'Contribution fetched successfully');
+    } else {
+        logger.warn({ contributionId: id }, 'Contribution not found');
+    }
+
+    return contribution;
 };
 
 export const getContributionSummary = async (chamaId: string) => {
+    logger.info({ chamaId }, 'Generating contribution summary');
+
     const year = new Date().getFullYear();
     const where = { membership: { chamaId }, year };
+    
     const result = await prisma.contribution.aggregate({
         _sum: { amount: true, penaltyApplied: true },
         _count: { id: true },
         where: { ...where, status: 'PAID' }
     });
+
     const activeMembers = await prisma.membership.count({ where: { chamaId, isActive: true } });
     const chama = await prisma.chama.findUnique({ where: { id: chamaId } });
+    
     const totalExpected = (activeMembers * (chama?.monthlyContribution || 0)) * 12;
     const totalPaid = result._sum.amount || 0;
-    return {
+
+    const summary = {
         year,
         totalPaid,
         totalPenalties: result._sum.penaltyApplied || 0,
@@ -203,36 +268,58 @@ export const getContributionSummary = async (chamaId: string) => {
         totalExpected,
         deficit: totalExpected - totalPaid,
     };
+
+    logger.info({ chamaId, ...summary }, 'Contribution summary generated successfully');
+
+    return summary;
 };
 
 export const findDefaulters = async (chamaId: string) => {
+    logger.info({ chamaId }, 'Finding defaulters');
+
     const now = new Date();
     const month = now.getMonth() + 1;
     const year = now.getFullYear();
+    
     const paidMemberIds = (await prisma.contribution.findMany({
         where: { month, year, status: 'PAID', membership: { chamaId } },
         select: { membershipId: true },
     })).map(c => c.membershipId);
-    return prisma.membership.findMany({
+
+    const defaulters = await prisma.membership.findMany({
         where: { chamaId, isActive: true, id: { notIn: paidMemberIds } },
         include: { user: { select: { id: true, firstName: true, lastName: true, email: true, phone: true } } },
     });
+
+    logger.info({ chamaId, month, year, defaultersCount: defaulters.length }, 'Defaulters found');
+
+    return defaulters;
 };
 
 export const parseAndImportContributions = async (chamaId: string, fileBuffer: Buffer) => {
+    logger.info({ chamaId, fileSize: fileBuffer.length }, 'Importing contributions from CSV');
+
     const csvData = fileBuffer.toString('utf-8');
     const parsed = Papa.parse(csvData, { header: true, skipEmptyLines: true });
+    
     if (parsed.errors.length) {
+        logger.error({ chamaId, errors: parsed.errors }, 'CSV parsing error');
         throw new Error(`CSV parsing error: ${parsed.errors[0].message}`);
     }
+
     const records = parsed.data as any[];
-    return prisma.$transaction(async (tx) => {
+    logger.info({ chamaId, recordCount: records.length }, 'Parsed CSV records');
+
+    const result = await prisma.$transaction(async (tx) => {
         const results = [];
         for (const record of records) {
             const membership = await tx.membership.findFirst({
                 where: { user: { email: record.email }, chamaId },
             });
-            if (!membership) continue;
+            if (!membership) {
+                logger.warn({ chamaId, email: record.email }, 'Membership not found for import record');
+                continue;
+            }
             const contribution = await tx.contribution.create({
                 data: {
                     membershipId: membership.id,
@@ -248,16 +335,26 @@ export const parseAndImportContributions = async (chamaId: string, fileBuffer: B
         }
         return { createdCount: results.length, totalRecords: records.length };
     });
+
+    logger.info({ chamaId, createdCount: result.createdCount, totalRecords: result.totalRecords }, 'Contributions imported successfully');
+
+    return result;
 };
 
 export const generateContributionsExport = async (chamaId: string): Promise<Buffer> => {
+    logger.info({ chamaId }, 'Generating contributions export');
+
     const contributions = await prisma.contribution.findMany({
         where: { membership: { chamaId } },
         include: { membership: { include: { user: true } } },
         orderBy: { paidAt: 'asc' },
     });
+
+    logger.info({ chamaId, contributionCount: contributions.length }, 'Fetched contributions for export');
+
     const workbook = new ExcelJS.Workbook();
     const worksheet = workbook.addWorksheet('Contributions');
+    
     worksheet.columns = [
         { header: 'Member Name', key: 'name', width: 30 },
         { header: 'Amount', key: 'amount', width: 15 },
@@ -268,6 +365,7 @@ export const generateContributionsExport = async (chamaId: string): Promise<Buff
         { header: 'Date Paid', key: 'paidAt', width: 20 },
         { header: 'Status', key: 'status', width: 15 },
     ];
+
     contributions.forEach(c => {
         worksheet.addRow({
             name: `${c.membership.user.firstName} ${c.membership.user.lastName}`,
@@ -280,6 +378,10 @@ export const generateContributionsExport = async (chamaId: string): Promise<Buff
             status: c.status,
         });
     });
+
     const buffer = await workbook.csv.writeBuffer();
+
+    logger.info({ chamaId, rowCount: contributions.length }, 'Contributions export generated successfully');
+
     return Buffer.from(buffer);
 };

@@ -3,6 +3,7 @@ import AfricasTalking from 'africastalking';
 import { PrismaClient } from '@prisma/client';
 import { WebSocketServer } from '../websocket.server';
 import { NotificationType } from '@prisma/client';
+import logger from '../config/logger'; // Import Pino logger
 
 const prisma = new PrismaClient();
 
@@ -39,7 +40,13 @@ export const sendInvitationEmail = async (email: string, inviterName: string) =>
     html: `<p>Hello,</p><p>You have been invited by ${inviterName} to join their Chama. Please click the link below to register and get started.</p><p><a href="${process.env.CORS_ORIGINS}/register">Register Now</a></p>`,
   };
 
-  await transporter.sendMail(mailOptions);
+  try {
+    await transporter.sendMail(mailOptions);
+    logger.info({ email, inviterName }, 'Invitation email sent');
+  } catch (error) {
+    logger.error({ error, email, inviterName }, 'Failed to send invitation email');
+    throw error;
+  }
 };
 
 /**
@@ -58,6 +65,12 @@ export const createNotification = async (data: NotificationData) => {
         }
     });
 
+    logger.debug({ 
+        notificationId: notification.id, 
+        userId: notification.membership.user.id, 
+        type: notification.type 
+    }, 'Notification created');
+
     // Send real-time notification via WebSocket to a specific user
     const wsServer = WebSocketServer.getInstance();
     if (wsServer) {
@@ -70,6 +83,10 @@ export const createNotification = async (data: NotificationData) => {
             createdAt: notification.createdAt,
             read: false
         });
+        logger.debug({ 
+            notificationId: notification.id, 
+            userId: notification.membership.user.id 
+        }, 'Real-time notification sent');
     }
 
     return notification;
@@ -93,7 +110,10 @@ export const createBulkNotifications = async (
         },
     });
 
-    if (memberships.length === 0) return;
+    if (memberships.length === 0) {
+        logger.warn({ chamaId }, 'No active members found for bulk notifications');
+        return;
+    }
 
     // Explicitly type the notifications data array
     const notificationsData: Array<{
@@ -113,6 +133,13 @@ export const createBulkNotifications = async (
         notificationsData.map((data) => prisma.notification.create({ data }))
     );
 
+    logger.info({ 
+        chamaId, 
+        memberCount: memberships.length, 
+        type, 
+        title 
+    }, 'Bulk notifications created');
+
     const wsServer = WebSocketServer.getInstance();
     if (wsServer) {
         wsServer.sendToChama(chamaId, 'new_broadcast_notification', {
@@ -122,6 +149,7 @@ export const createBulkNotifications = async (
             chamaName: memberships[0].chama.name,
             createdAt: new Date().toISOString()
         });
+        logger.debug({ chamaId, memberCount: memberships.length }, 'Broadcast notification sent');
     }
 };
 
@@ -135,10 +163,10 @@ export const sendSms = async (to: string[], message: string) => {
             message,
             from: process.env.AT_SENDER_ID, // Optional Sender ID
         });
-        console.log('SMS sent successfully:', response);
+        logger.info({ recipients: to.length, response }, 'SMS sent successfully');
         return response;
     } catch (error) {
-        console.error('SMS sending error:', error);
+        logger.error({ error, recipients: to.length }, 'SMS sending error');
         throw new Error('Failed to send SMS.');
     }
 };
@@ -154,10 +182,10 @@ export const sendEmail = async (to: string, subject: string, html: string) => {
             subject,
             html, // HTML body
         });
-        console.log('Email sent successfully:', info.messageId);
+        logger.info({ to, subject, messageId: info.messageId }, 'Email sent successfully');
         return info;
     } catch (error) {
-        console.error('Email sending error:', error);
+        logger.error({ error, to, subject }, 'Email sending error');
         throw new Error('Failed to send email.');
     }
 };
@@ -172,6 +200,7 @@ export const markNotificationAsRead = async (notificationId: string, userId: str
             notificationId,
             timestamp: new Date().toISOString()
         });
+        logger.debug({ notificationId, userId }, 'Notification marked as read event sent');
     }
 };
 
@@ -185,5 +214,6 @@ export const notifyNotificationDeleted = async (notificationId: string, userId: 
             notificationId,
             timestamp: new Date().toISOString()
         });
+        logger.debug({ notificationId, userId }, 'Notification deleted event sent');
     }
 };

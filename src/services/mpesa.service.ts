@@ -2,6 +2,7 @@ import axios from 'axios';
 import { format } from 'date-fns';
 import { PrismaClient } from '@prisma/client';
 import { isErrorWithMessage } from '../utils/error.utils';
+import logger from '../config/logger'; // Import Pino logger
 
 const prisma = new PrismaClient();
 
@@ -14,6 +15,7 @@ let mpesaToken: { token: string; expires: Date } | null = null;
  */
 const getAccessToken = async (): Promise<string> => {
     if (mpesaToken && mpesaToken.expires > new Date()) {
+        logger.debug('Using cached M-Pesa access token');
         return mpesaToken.token;
     }
 
@@ -22,6 +24,7 @@ const getAccessToken = async (): Promise<string> => {
     const baseURL = process.env.MPESA_API_BASE_URL;
 
     if (!consumerKey || !consumerSecret || !baseURL) {
+        logger.error('M-Pesa environment variables not configured');
         throw new Error('M-Pesa environment variables are not configured.');
     }
 
@@ -41,12 +44,13 @@ const getAccessToken = async (): Promise<string> => {
         const expires = new Date().getTime() + (expiresIn - 60) * 1000;
         mpesaToken = { token, expires: new Date(expires) };
 
+        logger.info({ expiresIn }, 'M-Pesa access token obtained');
         return token;
     } catch (error) {
         if (axios.isAxiosError(error)) {
-             console.error('M-Pesa Auth Error:', error.response?.data || error.message);
+            logger.error({ error: error.response?.data || error.message }, 'M-Pesa auth error');
         } else {
-            console.error('M-Pesa Auth Error:', error);
+            logger.error({ error }, 'M-Pesa auth error');
         }
         throw new Error('Failed to obtain M-Pesa access token.');
     }
@@ -88,6 +92,8 @@ export const initiateStkPush = async (phone: string, amount: number, contributio
     const url = `${baseURL}/mpesa/stkpush/v1/processrequest`;
     
     try {
+        logger.info({ phone, amount, contributionId }, 'Initiating STK push');
+        
         const response = await axios.post(url, payload, {
             headers: {
                 Authorization: `Bearer ${token}`,
@@ -101,16 +107,19 @@ export const initiateStkPush = async (phone: string, amount: number, contributio
                 where: { id: contributionId },
                 data: { mpesaCheckoutId: checkoutRequestId },
             });
+            logger.info({ checkoutRequestId, contributionId }, 'STK push initiated successfully');
         }
 
         return response.data;
     } catch (error) {
         if (axios.isAxiosError(error) && error.response?.data) {
-            // Re-throw the specific error message from Safaricom
+            logger.error({ error: error.response.data, phone, amount, contributionId }, 'STK push failed');
             throw new Error(JSON.stringify(error.response.data));
         } else if (isErrorWithMessage(error)) {
+            logger.error({ error: error.message, phone, amount, contributionId }, 'STK push failed');
             throw new Error(error.message);
         }
+        logger.error({ error, phone, amount, contributionId }, 'STK push failed');
         throw new Error('Failed to initiate M-Pesa STK Push.');
     }
 };
@@ -137,20 +146,25 @@ export const queryStkStatus = async (checkoutRequestId: string) => {
     };
 
     try {
+        logger.debug({ checkoutRequestId }, 'Querying STK push status');
+        
         const response = await axios.post(`${baseURL}/mpesa/stkpushquery/v1/query`, payload, {
             headers: {
                 Authorization: `Bearer ${token}`,
             },
-        })
+        });
+        
+        logger.info({ checkoutRequestId, resultCode: response.data.ResultCode }, 'STK push status queried');
         return response.data;
-    }catch (error) {
+    } catch (error) {
         if (axios.isAxiosError(error) && error.response?.data) {
-            // Re-throw the specific error message from Safaricom
-            console.error('STK Push Query Error:', error.response?.data || error.message);
+            logger.error({ error: error.response.data, checkoutRequestId }, 'STK push query error');
             throw new Error(JSON.stringify(error.response.data));
         } else if (isErrorWithMessage(error)) {
+            logger.error({ error: error.message, checkoutRequestId }, 'STK push query error');
             throw new Error(error.message);
         }
+        logger.error({ error, checkoutRequestId }, 'STK push query error');
         throw new Error('Failed to query M-Pesa STK Push status.');
     }
 }
@@ -187,21 +201,30 @@ export const initiateB2CPayment = async (phone: string, amount: number, remarks:
     }
 
     try {
+        logger.info({ phone, amount, remarks }, 'Initiating B2C payment');
+        
         const response = await axios.post(`${baseURL}/mpesa/b2c/v1/paymentrequest`, payload, {
             headers: {
                 Authorization: `Bearer ${token}`,
             },
         });
 
+        logger.info({ 
+            phone, 
+            amount, 
+            conversationId: response.data.ConversationID 
+        }, 'B2C payment initiated successfully');
+        
         return response.data;
     } catch (error) {
         if (axios.isAxiosError(error) && error.response?.data) {
-            // Re-throw the specific error message from Safaricom
-            console.error('B2C Payment Error:', error.response?.data || error.message);
+            logger.error({ error: error.response.data, phone, amount }, 'B2C payment error');
             throw new Error(JSON.stringify(error.response.data));
         } else if (isErrorWithMessage(error)) {
+            logger.error({ error: error.message, phone, amount }, 'B2C payment error');
             throw new Error(error.message);
         }
+        logger.error({ error, phone, amount }, 'B2C payment error');
         throw new Error('Failed to initiate M-Pesa B2C payment.');
     }
 }

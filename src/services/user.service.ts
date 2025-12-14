@@ -2,6 +2,7 @@ import { Prisma, PrismaClient, User } from '@prisma/client';
 import { createAuditLog } from './audit.service';
 import { sendInvitationEmail } from './notification.service';
 import { parsePhoneNumberFromString } from 'libphonenumber-js';
+import logger from '../config/logger'; // Import Pino logger
 
 const prisma = new PrismaClient();
 
@@ -20,6 +21,7 @@ export const getAllUsers = async (page: number, limit: number) => {
     select: { id: true, email: true, firstName: true, lastName: true, phone: true, role: true, createdAt: true },
   });
   const totalRecords = await prisma.user.count({ where: { deletedAt: null } });
+  logger.info({ page, limit, totalRecords, userCount: users.length }, 'Users fetched');
   return { users, totalRecords, totalPages: Math.ceil(totalRecords / limit) };
 };
 
@@ -29,10 +31,18 @@ export const getAllUsers = async (page: number, limit: number) => {
  * @returns The user object or null if not found.
  */
 export const getUserById = async (id: string) => {
-  return prisma.user.findFirst({
+  const user = await prisma.user.findFirst({
     where: { id, deletedAt: null },
     select: { id: true, email: true, phone: true, firstName: true, lastName: true, idNumber: true, role: true, createdAt: true },
   });
+  
+  if (user) {
+    logger.debug({ userId: id }, 'User fetched by ID');
+  } else {
+    logger.warn({ userId: id }, 'User not found or deleted');
+  }
+  
+  return user;
 };
 
 /**
@@ -45,6 +55,7 @@ export const getUserById = async (id: string) => {
 export const updateUser = async (adminUserId: string, targetUserId: string, data: Partial<User>) => {
   const userToUpdate = await getUserById(targetUserId);
   if (!userToUpdate) {
+    logger.warn({ adminUserId, targetUserId }, 'User not found for update');
     throw new Error('User not found or has been deleted.');
   }
 
@@ -57,7 +68,7 @@ export const updateUser = async (adminUserId: string, targetUserId: string, data
       // Add the normalized phone number to the data we will save.
       (updateData as any).phone = phoneNumber.format('E.164');
     } else {
-      // If the phone number is invalid, throw an error to stop the update.
+      logger.warn({ adminUserId, targetUserId, phone }, 'Invalid phone number format');
       throw new Error('Invalid phone number format provided.');
     }
   }
@@ -66,6 +77,8 @@ export const updateUser = async (adminUserId: string, targetUserId: string, data
     where: { id: targetUserId },
     data: updateData,
   });
+
+  logger.info({ adminUserId, targetUserId, updates: Object.keys(updateData) }, 'User updated');
 
   // Create an audit log of the change
   await createAuditLog({
@@ -88,6 +101,7 @@ export const updateUser = async (adminUserId: string, targetUserId: string, data
 export const softDeleteUser = async (adminUserId: string, targetUserId: string) => {
   const userToDelete = await getUserById(targetUserId);
   if (!userToDelete) {
+    logger.warn({ adminUserId, targetUserId }, 'User not found for deletion');
     throw new Error('User not found or has already been deleted.');
   }
 
@@ -95,6 +109,8 @@ export const softDeleteUser = async (adminUserId: string, targetUserId: string) 
     where: { id: targetUserId },
     data: { deletedAt: new Date() },
   });
+
+  logger.info({ adminUserId, targetUserId }, 'User soft deleted');
 
   // Create an audit log of the deletion
   await createAuditLog({
@@ -114,7 +130,7 @@ export const softDeleteUser = async (adminUserId: string, targetUserId: string) 
 export const inviteUser = async (inviter: User, inviteeEmail: string) => {
   const inviterName = `${inviter.firstName} ${inviter.lastName}`;
   await sendInvitationEmail(inviteeEmail, inviterName); // This would call the notification service
-  console.log(`Pretending to send an invitation email to ${inviteeEmail} from ${inviterName}.`);
+  logger.info({ inviteeEmail, inviterName }, `Pretending to send an invitation email to ${inviteeEmail} from ${inviterName}`);
 
   // Note: We would create an audit log here if the invitation created a unique,
   // one-time token in the database. For a simple email, it's not necessary.
@@ -147,6 +163,8 @@ export const searchUsers = async (query: string, page: number, limit: number) =>
     });
     
     const totalRecords = await prisma.user.count({ where: searchFilter });
+    
+    logger.info({ query, page, limit, totalRecords, resultCount: users.length }, 'Users searched');
     
     return { users, totalRecords, totalPages: Math.ceil(totalRecords / limit) };
 };

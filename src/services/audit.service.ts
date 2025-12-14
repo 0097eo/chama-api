@@ -1,5 +1,6 @@
 import { PrismaClient, AuditAction, Prisma } from '@prisma/client';
 import ExcelJS from 'exceljs';
+import logger from '../config/logger';
 
 const prisma = new PrismaClient();
 
@@ -55,8 +56,15 @@ export const createAuditLog = async (data: AuditLogData) => {
     await prisma.auditLog.create({
       data: logPayload as Prisma.AuditLogCreateInput,
     });
+
+    logger.debug({ 
+      action: data.action, 
+      actorId: data.actorId, 
+      targetId: data.targetId,
+      chamaId: data.chamaId 
+    }, 'Audit log created');
   } catch (error) {
-    console.error("Failed to create audit log:", error);
+    logger.error({ error, action: data.action, actorId: data.actorId }, 'Failed to create audit log');
   }
 };
 
@@ -83,6 +91,7 @@ export const findLogs = async ({ page, limit, filter }: FindLogsParams) => {
         }
     });
     const totalRecords = await prisma.auditLog.count({ where: filter });
+    logger.debug({ page, limit, totalRecords, filterKeys: Object.keys(filter) }, 'Audit logs fetched');
     return { logs, totalRecords, totalPages: Math.ceil(totalRecords / limit) };
 };
 
@@ -115,5 +124,6 @@ export const generateAuditExport = async (logs: any[]): Promise<Buffer> => {
 
     const excelJsBuffer = await workbook.csv.writeBuffer();
     
+    logger.info({ logsCount: logs.length }, 'Audit export generated');
     return excelJsBuffer as unknown as Buffer;
 };

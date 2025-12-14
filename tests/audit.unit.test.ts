@@ -6,6 +6,15 @@ const mockCreate = jest.fn();
 const mockFindMany = jest.fn();
 const mockCount = jest.fn();
 
+jest.mock('../src/config/logger', () => {
+    return {
+        info: jest.fn(),
+        warn: jest.fn(),
+        error: jest.fn(),
+        debug: jest.fn(),
+    };
+});
+
 jest.mock('@prisma/client', () => {
     const actual = jest.requireActual('@prisma/client');
     return {
@@ -57,6 +66,7 @@ const mockWriteBufferRef = ExcelJSMock.__mockWriteBuffer;
 
 import { createAuditLog, findLogs, generateAuditExport } from '../src/services/audit.service';
 import { getChamaAuditLogs, getUserActivityLogs, searchAuditLogs, exportAuditLogs } from '../src/controllers/audit.controller';
+import logger from '../src/config/logger';
 
 describe('Audit Service', () => {
     beforeEach(() => {
@@ -121,7 +131,14 @@ describe('Audit Service', () => {
             await createAuditLog(data);
 
             expect(mockCreate).toHaveBeenCalled();
-            expect(consoleErrorSpy).toHaveBeenCalledWith("Failed to create audit log:", expect.any(Error));
+            expect(logger.error).toHaveBeenCalledWith(
+            expect.objectContaining({
+                error: expect.any(Error),
+                action: AuditAction.USER_UPDATE,
+                actorId: 'user123'
+                    }),
+                    'Failed to create audit log'
+                );
             consoleErrorSpy.mockRestore();
         });
     });

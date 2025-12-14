@@ -1,6 +1,7 @@
 import { Chama, Membership, MembershipRole, AuditAction, PrismaClient } from '@prisma/client';
 import { add } from 'date-fns';
 import { createAuditLog } from './audit.service';
+import logger from '../config/logger';
 
 const prisma = new PrismaClient();
 
@@ -19,6 +20,8 @@ const generateRegistrationNumber = (): string => {
 };
 
 export const createChamaAndFirstMember = async (data: ChamaCreationData, creatorId: string): Promise<Chama> => {
+  logger.info({ creatorId, chamaName: data.name }, 'Creating new chama');
+
   let uniqueRegistrationNumber: string;
   let isUnique = false;
 
@@ -32,8 +35,8 @@ export const createChamaAndFirstMember = async (data: ChamaCreationData, creator
       }
   }
 
-  return prisma.$transaction(async (tx) => {
-    const newChama = await tx.chama.create({
+  const newChama = await prisma.$transaction(async (tx) => {
+    const chama = await tx.chama.create({
       data: {
         name: data.name,
         description: data.description,
@@ -47,19 +50,25 @@ export const createChamaAndFirstMember = async (data: ChamaCreationData, creator
 
     await tx.membership.create({
       data: {
-        chamaId: newChama.id,
+        chamaId: chama.id,
         userId: creatorId,
         role: 'ADMIN',
         isActive: true,
       },
     });
 
-    return newChama;
+    return chama;
   });
+
+  logger.info({ chamaId: newChama.id, creatorId, registrationNumber: newChama.registrationNumber }, 'Chama created successfully');
+
+  return newChama;
 };
 
-export const findUserChamas = (userId: string): Promise<Chama[]> => {
-  return prisma.chama.findMany({
+export const findUserChamas = async (userId: string): Promise<Chama[]> => {
+  logger.info({ userId }, 'Fetching user chamas');
+
+  const chamas = await prisma.chama.findMany({
     where: {
       members: {
         some: {
@@ -87,10 +96,16 @@ export const findUserChamas = (userId: string): Promise<Chama[]> => {
         createdAt: 'desc'
     }
   });
+
+  logger.info({ userId, count: chamas.length }, 'User chamas fetched successfully');
+
+  return chamas;
 };
 
-export const findChamaDetails = (chamaId: string) => {
-  return prisma.chama.findUnique({
+export const findChamaDetails = async (chamaId: string) => {
+  logger.info({ chamaId }, 'Fetching chama details');
+
+  const chama = await prisma.chama.findUnique({
     where: { id: chamaId },
     include: {
       members: {
@@ -104,9 +119,19 @@ export const findChamaDetails = (chamaId: string) => {
       },
     },
   });
+
+  if (chama) {
+    logger.info({ chamaId, memberCount: chama.members.length }, 'Chama details fetched successfully');
+  } else {
+    logger.warn({ chamaId }, 'Chama not found');
+  }
+
+  return chama;
 };
 
 export const updateChamaDetails = async (chamaId: string, actorId: string, data: Partial<ChamaCreationData>) => {
+    logger.info({ chamaId, actorId }, 'Updating chama details');
+
     const oldValue = await prisma.chama.findUnique({ where: { id: chamaId } });
 
     const updatedChama = await prisma.chama.update({
@@ -122,10 +147,14 @@ export const updateChamaDetails = async (chamaId: string, actorId: string, data:
         newValue: updatedChama,
     });
 
+    logger.info({ chamaId, actorId }, 'Chama details updated successfully');
+
     return updatedChama;
 };
 
 export const deleteChamaById = async (chamaId: string, actorId: string) => {
+    logger.info({ chamaId, actorId }, 'Deleting chama');
+
     const oldValue = await prisma.chama.findUnique({ where: { id: chamaId } });
 
     const deletedChama = await prisma.chama.delete({ where: { id: chamaId } });
@@ -137,15 +166,20 @@ export const deleteChamaById = async (chamaId: string, actorId: string) => {
         oldValue: oldValue || undefined,
     });
 
+    logger.info({ chamaId, actorId }, 'Chama deleted successfully');
+
     return deletedChama;
 };
 
 export const addMemberToChama = async (chamaId: string, actorId: string, userEmail: string): Promise<Membership> => {
+    logger.info({ chamaId, actorId, userEmail }, 'Adding member to chama');
+
     const userToAdd = await prisma.user.findUnique({
         where: { email: userEmail },
     });
 
     if (!userToAdd) {
+        logger.warn({ chamaId, userEmail }, 'Cannot add member: user not found');
         throw new Error('User with this email does not exist. Please ask them to register first.');
     }
 
@@ -172,16 +206,21 @@ export const addMemberToChama = async (chamaId: string, actorId: string, userEma
         targetId: userToAdd.id,
         newValue: { membershipId: newMembership.id, userId: userToAdd.id, userEmail },
     });
+
+    logger.info({ chamaId, actorId, newMemberId: userToAdd.id }, 'Member added to chama successfully');
     
     return newMembership;
 };
 
 export const removeMemberFromChama = async (chamaId: string, actorId: string, userIdToRemove: string) => {
+    logger.info({ chamaId, actorId, userIdToRemove }, 'Removing member from chama');
+
     const membershipToRemove = await prisma.membership.findUnique({
         where: { userId_chamaId: { userId: userIdToRemove, chamaId } }
     });
     
     if (!membershipToRemove) {
+        logger.warn({ chamaId, userIdToRemove }, 'Cannot remove member: membership not found');
         throw new Error('Membership not found.');
     }
 
@@ -198,16 +237,21 @@ export const removeMemberFromChama = async (chamaId: string, actorId: string, us
         targetId: userIdToRemove,
         oldValue: membershipToRemove,
     });
+
+    logger.info({ chamaId, actorId, userIdToRemove }, 'Member removed from chama successfully');
     
     return deletedMembership;
 };
 
 export const updateMemberRoleInChama = async (chamaId: string, actorId: string, userIdToUpdate: string, newRole: MembershipRole) => {
+    logger.info({ chamaId, actorId, userIdToUpdate, newRole }, 'Updating member role');
+
     const oldMembership = await prisma.membership.findUnique({
         where: { userId_chamaId: { userId: userIdToUpdate, chamaId } },
     });
 
     if (!oldMembership) {
+        logger.warn({ chamaId, userIdToUpdate }, 'Cannot update role: membership not found');
         throw new Error('Membership not found.');
     }
     
@@ -216,6 +260,7 @@ export const updateMemberRoleInChama = async (chamaId: string, actorId: string, 
             where: { chamaId, role: 'ADMIN' },
         });
         if (adminCount <= 1 && oldMembership.role === 'ADMIN') {
+            logger.warn({ chamaId, userIdToUpdate }, 'Cannot demote last admin');
             throw new Error('Cannot demote the last admin. Please assign another admin first.');
         }
     }
@@ -234,23 +279,36 @@ export const updateMemberRoleInChama = async (chamaId: string, actorId: string, 
         newValue: { role: newRole },
     });
 
+    logger.info({ chamaId, actorId, userIdToUpdate, oldRole: oldMembership.role, newRole }, 'Member role updated successfully');
+
     return updatedMembership;
 };
 
 export const createMemberInvitation = async (chamaId: string, email: string, inviterId: string) => {
+    logger.info({ chamaId, email, inviterId }, 'Creating member invitation');
+
     const existingMembership = await prisma.membership.findFirst({
         where: { chamaId, user: { email } },
     });
+
     if (existingMembership) {
+        logger.warn({ chamaId, email }, 'Cannot invite: user already a member');
         throw new Error('This user is already a member of the chama.');
     }
+
     const expiresAt = add(new Date(), { days: 7 });
-    return prisma.chamaInvitation.create({
+    const invitation = await prisma.chamaInvitation.create({
         data: { chamaId, email, inviterId, expiresAt },
     });
+
+    logger.info({ chamaId, email, inviterId, invitationId: invitation.id }, 'Member invitation created successfully');
+
+    return invitation;
 };
 
 export const getDashboardData = async (chamaId: string) => {
+    logger.info({ chamaId }, 'Fetching dashboard data');
+
     const currentYear = new Date().getFullYear();
 
     const [totalContributions, loanData, memberCount] = await Promise.all([
@@ -268,10 +326,14 @@ export const getDashboardData = async (chamaId: string) => {
         }),
     ]);
 
-    return {
+    const dashboardData = {
         totalMembers: memberCount,
         totalContributionsThisYear: totalContributions._sum.amount || 0,
         activeLoansCount: loanData._count.id || 0,
         totalLoanAmountActive: loanData._sum.amount || 0,
     };
+
+    logger.info({ chamaId, ...dashboardData }, 'Dashboard data fetched successfully');
+
+    return dashboardData;
 };

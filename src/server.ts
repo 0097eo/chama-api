@@ -19,6 +19,7 @@ import auditRoutes from './routes/audit.routes';
 import { WebSocketServer } from './websocket.server';
 import { createServer } from 'http';
 import { errorHandler } from './middleware/error.middleware';
+import swaggerDocs from './utils/swagger';
 
 dotenv.config();
 
@@ -27,7 +28,7 @@ export const server = createServer(app);
 
 const wsServer = new WebSocketServer(server);
 
-const PORT = process.env.PORT || 3000;
+const PORT = parseInt(process.env.PORT || '3000', 10);
 
 // --- Global Middleware ---
 // Add pino-http middleware first for request logging
@@ -53,9 +54,6 @@ app.use(pinoHttp({
   },
   wrapSerializers: false,
   autoLogging: true,
-  // Exclude health check from verbose logging if desired
-  // genReqId: function (req, res) { return req.id },
-  // redact: ['req.headers.authorization'], // Redact sensitive headers
 }));
 
 app.use(cors({
@@ -64,8 +62,6 @@ app.use(cors({
 }));
 
 app.use(helmet());
-// Remove morgan as pino-http handles request logging
-// app.use(morgan('dev')); 
 app.use(express.json());
 
 // --- API Routes ---
@@ -92,4 +88,5 @@ app.use(errorHandler);
 server.listen(PORT, () => {
   logger.info(`Server running on port ${PORT}`);
   logger.info('WebSocket server initialized');
+  swaggerDocs(app, PORT);
 });

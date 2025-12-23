@@ -2,6 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 import { AppError } from '../utils/customErrors';
 import { isPrismaError } from '../utils/error.utils';
 import logger from '../config/logger';
+import * as Sentry from '@sentry/node';
 
 export const errorHandler = (
   err: Error,
@@ -9,7 +10,24 @@ export const errorHandler = (
   res: Response,
   next: NextFunction
 ) => {
-  // Handle AppError
+  logger.error({ err, message: err.message }, 'Error occurred');
+
+  // Capture non-operational errors in Sentry
+  // Operational errors (AppError) are expected and don't need to go to Sentry
+  if (!(err instanceof AppError)) {
+    Sentry.captureException(err, {
+      level: 'error',
+      extra: {
+        url: req.url,
+        method: req.method,
+        body: req.body,
+        params: req.params,
+        query: req.query,
+      },
+    });
+  }
+
+  // Handle AppError (operational errors)
   if (err instanceof AppError) {
     return res.status(err.statusCode).json({
       success: false,
@@ -43,10 +61,7 @@ export const errorHandler = (
     });
   }
 
-  // Log unexpected errors
-  logger.error({ err, message: 'Unexpected error' }, 'Unexpected error:');
-
-  // Handle generic errors
+  // Handle generic errors (these are unexpected and go to Sentry)
   return res.status(500).json({
     success: false,
     message: process.env.NODE_ENV === 'production' 

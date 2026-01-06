@@ -8,7 +8,7 @@
 
 A robust backend service for modern Chama (micro-savings group) management. Built for Kenyan financial services with M-Pesa integration, comprehensive auditing, and enterprise-grade security.
 
-📚 [**Documentation**](./docs/api.md) | 🚀 [**Quickstart**](#getting-started) | 🔧 [**API Reference**](./docs/api.md)
+[**Documentation**](./api.md) | [**Quickstart**](#getting-started) | [**API Reference**](./api.md)
 
 ---
 
@@ -25,7 +25,7 @@ A robust backend service for modern Chama (micro-savings group) management. Buil
 - **Loans:** Complete lifecycle management including eligibility checks, approval workflows, disbursement, and repayment schedules
 - **Reporting:** Financial summaries, contribution reports, loan portfolio analysis, and cash flow statements
 
-### 📱 M-Pesa Integration
+### M-Pesa Integration
 - STK Push for member contributions
 - B2C disbursements for loan payments
 - Automated callback handling for payment confirmations
@@ -148,7 +148,7 @@ All protected endpoints require an `Authorization` header:
 Authorization: Bearer <your_jwt_access_token>
 ```
 
-For complete API documentation with examples and error codes, see [API Reference](./docs/api.md).
+For complete API documentation with examples and error codes, see [API Reference](./api.md).
 
 ### Base URL
 

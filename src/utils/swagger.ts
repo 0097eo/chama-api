@@ -25,10 +25,10 @@ const options: swaggerJSDoc.Options = {
         url: "http://localhost:3000/api",
         description: "Development server",
       },
-    //   {
-    //     url: "https://api.chama.com/api",
-    //     description: "Production server",
-    //   },
+      {
+         url: "http://44.200.248.168:3000/api",
+         description: "Production server",
+       },
     ],
     components: {
       securitySchemes: {

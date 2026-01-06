@@ -1,155 +1,206 @@
 # Chama API
 
-A robust and feature-rich backend service for a modern Chama (micro-savings group) management platform. This API provides a comprehensive suite of tools for managing members, contributions, loans, meetings, and financial transactions, with a strong focus on security, auditing, and integration with Kenyan financial services like M-Pesa.
+[![CI](https://github.com/0097eo/chama-api/actions/workflows/ci.yml/badge.svg)](https://github.com/YOUR_USERNAME/chama-api/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Node.js Version](https://img.shields.io/badge/node-%3E%3D16.0.0-brightgreen)](https://nodejs.org/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.0-blue)](https://www.typescriptlang.org/)
+[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-15-316192)](https://www.postgresql.org/)
+
+A robust backend service for modern Chama (micro-savings group) management. Built for Kenyan financial services with M-Pesa integration, comprehensive auditing, and enterprise-grade security.
+
+📚 [**Documentation**](./docs/api.md) | 🚀 [**Quickstart**](#getting-started) | 🔧 [**API Reference**](./docs/api.md)
+
+---
 
 ## Features
 
--   **JWT Authentication:** Secure user registration and login using JSON Web Tokens and bcrypt for password hashing.
--   **Chama Management:** Full CRUD operations for creating and managing chamas, including member invitations and role-based access control (`ADMIN`, `TREASURER`, `SECRETARY`, `MEMBER`).
--   **Financial Tracking:**
-    -   **Contributions:** Detailed tracking of member contributions with support for late payment penalties.
-    -   **Loans:** A complete loan lifecycle management system, including eligibility checks, approval workflows, disbursement, repayment schedules, and restructuring.
--   **M-Pesa Integration:** Seamlessly handle payments and disbursements using the Safaricom Daraja API.
-    -   **STK Push:** for easy member contribution payments.
-    -   **B2C:** for disbursing loans directly to members' M-Pesa accounts.
-    -   **Callback Handling:** Robust webhooks for processing payment confirmations.
--   **Meeting Management:**
-    -   Schedule meetings with agendas and locations.
-    -   Track attendance (with support for QR code generation).
-    -   Store meeting minutes.
-    -   Generate iCalendar (`.ics`) files for easy calendar integration.
--   **File Management:** Securely upload, store, and manage documents (like constitutions, receipts) using Cloudinary.
--   **Reporting & Analytics:** A suite of endpoints for generating financial summaries, contribution reports, loan portfolio analyses, and cash flow statements.
--   **Notification System:** A multi-channel notification system for in-app alerts, with service-level integration for sending SMS (via Africa's Talking) and email (via Nodemailer).
--   **Comprehensive Auditing:** A detailed audit trail that logs all critical create, update, and delete operations across the application, including user IP and device information.
+### Security & Authentication
+- JWT-based authentication with refresh tokens
+- Role-based access control (ADMIN, TREASURER, SECRETARY, MEMBER)
+- bcrypt password hashing
+- Comprehensive audit trails with IP and device tracking
 
-## Tech Stack
+### Financial Management
+- **Contributions:** Track member payments with automated late penalties
+- **Loans:** Complete lifecycle management including eligibility checks, approval workflows, disbursement, and repayment schedules
+- **Reporting:** Financial summaries, contribution reports, loan portfolio analysis, and cash flow statements
 
--   **Backend:** Node.js, Express.js, TypeScript
--   **Database:** PostgreSQL
--   **ORM:** Prisma
--   **Authentication:** JSON Web Tokens (JWT), bcrypt
--   **File Storage:** Cloudinary
--   **Payment Gateway:** M-Pesa Daraja API
--   **SMS Gateway:** Africa's Talking
--   **Email:** Nodemailer
--   **Validation:** `express-validator`
--   **Containerization:** Docker & Docker Compose for local development
+### 📱 M-Pesa Integration
+- STK Push for member contributions
+- B2C disbursements for loan payments
+- Automated callback handling for payment confirmations
+- Powered by Safaricom Daraja API
+
+### Meeting Management
+- Schedule meetings with agendas and locations
+- QR code-based attendance tracking
+- Meeting minutes storage
+- iCalendar (.ics) export for calendar apps
+
+### Multi-Channel Notifications
+- In-app alerts
+- SMS via Africa's Talking
+- Email via Nodemailer
+
+### Document Management
+- Secure file upload and storage via Cloudinary
+- Support for constitutions, receipts, and meeting documents
+
+---
 
 ## Getting Started
 
-Follow these instructions to get the project up and running on your local machine for development and testing.
-
 ### Prerequisites
 
--   Node.js (v16 or higher recommended)
--   npm or yarn
--   Docker and Docker Compose
--   A code editor (e.g., VS Code)
--   Postman for API testing
+- Node.js 16+ 
+- Docker & Docker Compose
+- npm or yarn
 
-### Installation & Setup
+### Installation
 
-1.  **Clone the repository:**
-    ```bash
-    git clone <your-repository-url>
-    cd chama-api
-    ```
+```bash
+# Clone the repository
+git clone <your-repository-url>
+cd chama-api
 
-2.  **Install dependencies:**
-    ```bash
-    npm install
-    ```
+# Install dependencies
+npm install
 
-3.  **Set up environment variables:**
-    Copy the example environment file and fill in your credentials.
-    ```bash
-    cp .env.example .env
-    ```
-    Now, open the `.env` file and add your credentials for the database, JWT, Cloudinary, M-Pesa, Africa's Talking, and SMTP.
+# Set up environment variables
+cp .env.example .env
+# Edit .env with your credentials
 
-4.  **Start the database:**
-    This command will start a PostgreSQL database in a Docker container.
-    ```bash
-    docker-compose up -d
-    ```
+# Start PostgreSQL with Docker
+docker-compose up -d
 
-5.  **Run database migrations:**
-    This command will create all the necessary tables in your database based on the Prisma schema.
-    ```bash
-    npx prisma migrate dev
-    ```
+# Run database migrations
+npx prisma migrate dev
 
-6.  **Start the development server:**
-    ```bash
-    npm run dev
-    ```
-    The server will start on the port specified in your `.env` file (defaults to `3000`) and will automatically restart on file changes.
+# Start development server
+npm run dev
+```
 
-## Environment Configuration
+The API will be available at `http://localhost:3000`
 
-The `.env` file is crucial for the application to run. Here are the key variables you need to configure:
+---
 
--   `DATABASE_URL`: The connection string for your PostgreSQL database. The default value should work with the provided `docker-compose.yml`.
--   `PORT`: The port your API server will run on.
--   `CORS_ORIGINS`: The allowed origins
--   `JWT_SECRET`, `JWT_EXPIRES_IN` & `JWT_REFRESH_SECRET`: Long, random, secret strings for signing tokens.
--   `CLOUDINARY_*`: Your credentials from your Cloudinary account.
--   `APP_PUBLIC_URL`: Your public-facing URL from a tunneling service like ngrok or localtunnel (e.g., `https://random.ngrok-free.app`). Required for M-Pesa callbacks.
--   `MPESA_*`: Your M-Pesa Daraja Sandbox credentials.
--   `AT_*`: Your Africa's Talking Sandbox credentials (`AT_USERNAME` is usually `sandbox`).
--   `EMAIL_*`: Your SMTP credentials for sending emails.
+## Configuration
 
-## Running the Application
+Create a `.env` file with the following variables:
 
--   **Development Mode:**
-    ```bash
-    npm run dev
-    ```
+```env
+# Database
+DATABASE_URL="postgresql://user:password@localhost:5432/chama_db"
 
--   **Production Build:**
-    ```bash
-    # 1. Compile TypeScript to JavaScript
-    npm run build
+# Server
+PORT=3000
+CORS_ORIGINS="http://localhost:3000"
 
-    # 2. Start the production server
-    npm start
-    ```
+# JWT
+JWT_SECRET="your-secret-key"
+JWT_EXPIRES_IN="1d"
+JWT_REFRESH_SECRET="your-refresh-secret"
+
+# Cloudinary
+CLOUDINARY_CLOUD_NAME="your-cloud-name"
+CLOUDINARY_API_KEY="your-api-key"
+CLOUDINARY_API_SECRET="your-api-secret"
+
+# M-Pesa Daraja
+APP_PUBLIC_URL="https://your-ngrok-url.ngrok-free.app"
+MPESA_CONSUMER_KEY="your-consumer-key"
+MPESA_CONSUMER_SECRET="your-consumer-secret"
+MPESA_SHORTCODE="your-shortcode"
+MPESA_PASSKEY="your-passkey"
+
+# Africa's Talking
+AT_USERNAME="sandbox"
+AT_API_KEY="your-api-key"
+
+# Email (SMTP)
+EMAIL_HOST="smtp.gmail.com"
+EMAIL_PORT=587
+EMAIL_USER="your-email@gmail.com"
+EMAIL_PASS="your-app-password"
+```
+
+---
+
+## Built With
+
+- **Backend:** Node.js, Express.js, TypeScript
+- **Database:** PostgreSQL with Prisma ORM
+- **Authentication:** JWT, bcrypt
+- **File Storage:** Cloudinary
+- **Payments:** M-Pesa Daraja API
+- **SMS:** Africa's Talking
+- **Email:** Nodemailer
+- **Validation:** express-validator
+- **Containerization:** Docker, Docker Compose
+
+---
 
 ## API Documentation
 
-For detailed information on all available endpoints, request/response examples, and error codes, please refer to the complete API documentation:
+All protected endpoints require an `Authorization` header:
 
-[**View Full API Documentation](./api.md)**
+```
+Authorization: Bearer <your_jwt_access_token>
+```
+
+For complete API documentation with examples and error codes, see [API Reference](./docs/api.md).
 
 ### Base URL
 
--   **Development:** `http://localhost:3000`
+- **Development:** `http://localhost:3000`
+- **Production:** Your deployed URL
 
-### Authorization
+---
 
-All protected endpoints (except for public webhooks like `/api/payments/callback`) require an `Authorization` header with a Bearer token:
-`Authorization: Bearer <your_jwt_access_token>`
+## Testing
 
-## Project Structure
+```bash
+# Run tests
+npm test
 
-The project follows a standard feature-based architecture to keep the code organized and maintainable.
-    ```
-    /
-    ├── docs/               # Project documentation files
-    ├── prisma/             # Prisma schema and migration files
-    └── src/
-        ├── config/         # Configuration files (e.g., Cloudinary)
-        ├── controllers/    # Express controllers (handle req/res)
-        ├── middleware/     # Custom middleware (auth, permissions, validation)
-        ├── routes/         # API route definitions
-        ├── services/       # Core business logic
-        ├── types/          # Custom TypeScript type definitions
-        ├── utils/          # Utility functions (JWT, error handling)
-        └── validators/     # Reusable validation rules for express-validator
-    ```
+# Run tests with coverage
+npm run test:coverage
+```
 
+---
+
+## Deployment
+
+```bash
+# Build for production
+npm run build
+
+# Start production server
+npm start
+```
+
+---
+
+## Contributing
+
+Contributions are welcome! Please feel free to submit a Pull Request.
+
+1. Fork the project
+2. Create your feature branch (`git checkout -b feature/AmazingFeature`)
+3. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
+4. Push to the branch (`git push origin feature/AmazingFeature`)
+5. Open a Pull Request
+
+---
 
 ## License
 
-This project is licensed under the MIT License. See the `LICENSE` file for details.
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+---
+
+## Support
+
+For questions or support, please open an issue or contact the maintainers.
+
+---
